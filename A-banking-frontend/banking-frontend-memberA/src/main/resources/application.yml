@@ -1,0 +1,61 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: banking-frontend
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+    cache: false
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# 后端各服务地址配置（对接其他成员的服务）
+backend:
+  auth-service:
+    url: http://localhost:8081   # 成员B - 认证 & 安全服务
+  account-service:
+    url: http://localhost:8082   # 成员C - 账户管理服务
+  transaction-service:
+    url: http://localhost:8083   # 成员D - 交易服务
+  bill-service:
+    url: http://localhost:8084   # 成员E - 账单 & 报表服务
+  admin-service:
+    url: http://localhost:8085   # 成员F - 管理员后台服务
+
+# HTTP Client 超时配置
+http:
+  client:
+    connect-timeout: 5000
+    read-timeout: 30000
+
+# SpringDoc / Swagger 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+  default-produces-media-type: application/json
+
+# 日志
+logging:
+  level:
+    com.bank: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

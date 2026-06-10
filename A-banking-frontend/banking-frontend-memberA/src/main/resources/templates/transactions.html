@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交易记录 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/nav :: navbar}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <h2>交易记录</h2>
+    </div>
+
+    <!-- 筛选区 -->
+    <div class="card filter-bar">
+        <div class="filter-row">
+            <div class="filter-item">
+                <label>账户</label>
+                <select id="filterAccount" class="form-control">
+                    <option value="">-- 请选择账户 --</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>开始日期</label>
+                <input type="date" id="startDate" class="form-control">
+            </div>
+            <div class="filter-item">
+                <label>结束日期</label>
+                <input type="date" id="endDate" class="form-control">
+            </div>
+            <div class="filter-item filter-actions">
+                <button class="btn btn-primary" onclick="loadTransactions(1)">查询</button>
+                <button class="btn btn-secondary" onclick="resetFilter()">重置</button>
+                <button class="btn btn-secondary" onclick="exportData('CSV')">导出 CSV</button>
+                <button class="btn btn-secondary" onclick="exportData('PDF')">导出 PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>交易ID</th>
+                    <th>类型</th>
+                    <th>付款账户</th>
+                    <th>收款账户</th>
+                    <th>金额</th>
+                    <th>余额</th>
+                    <th>备注</th>
+                    <th>时间</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="9" class="text-center">请选择账户后点击查询</td></tr>
+            </tbody>
+        </table>
+
+        <!-- 分页 -->
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/app.js}"></script>
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+
+    async function init() {
+        try {
+            const accounts = await apiGet('/api/accounts/my');
+            const select = document.getElementById('filterAccount');
+            accounts.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.accountNo;
+                opt.textContent = maskAccountNo(a.accountNo) + ' (' + (a.accountType === 'SAVINGS' ? '储蓄' : '活期') + ')';
+                select.appendChild(opt);
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadTransactions(page) {
+        const accountNo = document.getElementById('filterAccount').value;
+        if (!accountNo) { alert('请先选择账户'); return; }
+
+        currentPage = page;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+
+        let url = `/api/bills/history?accountNo=${accountNo}&page=${page}&pageSize=10`;
+        if (startDate) url += '&startDate=' + startDate;
+        if (endDate) url += '&endDate=' + endDate;
+
+        try {
+            const result = await apiGet(url);
+            totalPages = result.totalPages || 1;
+            renderTable(result.records || []);
+            renderPagination(result.total, page);
+        } catch(e) {
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="9" class="text-center">加载失败：' + e.message + '</td></tr>';
+        }
+    }
+
+    function renderTable(records) {
+        const tbody = document.getElementById('tableBody');
+        if (!records.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">该时间段内无交易记录</td></tr>';
+            return;
+        }
+        tbody.innerHTML = records.map(t => `
+            <tr>
+                <td><span class="mono" style="font-size:12px">${t.transactionId}</span></td>
+                <td>${formatTxnType(t.transactionType)}</td>
+                <td class="mono">${t.fromAccountNo ? maskAccountNo(t.fromAccountNo) : '-'}</td>
+                <td class="mono">${t.toAccountNo ? maskAccountNo(t.toAccountNo) : '-'}</td>
+                <td class="${t.transactionType === 'DEPOSIT' ? 'amount-in' : 'amount-out'}" style="font-weight:600">
+                    ${t.transactionType === 'DEPOSIT' ? '+' : '-'}¥${formatAmount(t.amount)}
+                </td>
+                <td>¥${formatAmount(t.balanceAfter)}</td>
+                <td>${t.remark || '-'}</td>
+                <td style="font-size:12px">${formatDate(t.transactionTime)}</td>
+                <td><span class="badge badge-${(t.status || '').toLowerCase()}">${formatStatus(t.status)}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function renderPagination(total, current) {
+        const container = document.getElementById('pagination');
+        if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+        let html = `<span class="page-info">共 ${total} 条</span>`;
+        if (current > 1) html += `<button class="page-btn" onclick="loadTransactions(${current - 1})">上一页</button>`;
+        html += `<span class="page-current">${current} / ${totalPages}</span>`;
+        if (current < totalPages) html += `<button class="page-btn" onclick="loadTransactions(${current + 1})">下一页</button>`;
+        container.innerHTML = html;
+    }
+
+    function resetFilter() {
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="9" class="text-center">请选择账户后点击查询</td></tr>';
+        document.getElementById('pagination').innerHTML = '';
+    }
+
+    function exportData(format) {
+        const accountNo = document.getElementById('filterAccount').value;
+        if (!accountNo) { alert('请先选择账户'); return; }
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const token = localStorage.getItem('accessToken');
+
+        let url = `/api/bills/export?accountNo=${accountNo}&format=${format}`;
+        if (startDate) url += '&startDate=' + startDate;
+        if (endDate) url += '&endDate=' + endDate;
+
+        // 通过 fetch 下载文件（携带 token）
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(r => r.blob())
+            .then(blob => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `transactions_${accountNo}.${format.toLowerCase()}`;
+                link.click();
+            })
+            .catch(e => alert('导出失败：' + e.message));
+    }
+
+    init();
+</script>
+</body>
+</html>
