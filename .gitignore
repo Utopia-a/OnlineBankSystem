@@ -1,11 +1,20 @@
-# Maven 编译输出目录
+# Maven 编译输出
+target/
+
+# 旧多模块目录（已合并为单体，勿再提交）
+A-banking-frontend/
+B_banking-auth/
+C_member-c/
+D_transaction-service/
+E_banking-report/
+member-f-admin-module/
 **/target/
 
-# IDEA 配置文件
+# IDEA
 .idea/
 *.iml
 
-# 日志文件
+# 日志
 *.log
 
 # 操作系统

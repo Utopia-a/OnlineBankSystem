@@ -93,6 +93,11 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, ex) -> {
+            String accept = request.getHeader("Accept");
+            if (accept != null && accept.contains("text/html")) {
+                response.sendRedirect("/login?reason=unauthorized");
+                return;
+            }
             response.setStatus(401);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
             Map<String, Object> body = new HashMap<>();

@@ -11,5 +11,7 @@ public enum TransactionStatus {
     /** 失败 */
     FAILED,
     /** 已回滚 */
-    ROLLED_BACK
+    ROLLED_BACK,
+    /** 已撤销（管理员操作） */
+    CANCELLED
 }
