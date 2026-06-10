@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="navbar" class="navbar">
+    <div class="navbar-brand">
+        <a href="/dashboard">🏦 网上银行系统</a>
+    </div>
+    <div class="navbar-menu">
+        <a href="/dashboard" class="nav-link">首页</a>
+        <a href="/accounts" class="nav-link">账户管理</a>
+        <a href="/transfer" class="nav-link">转账汇款</a>
+        <a href="/transactions" class="nav-link">交易记录</a>
+    </div>
+    <div class="navbar-user">
+        <span id="navUserName" class="nav-username"></span>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+    </div>
+</nav>
+<script>
+    (function () {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        if (!localStorage.getItem('accessToken')) {
+            window.location.href = '/login';
+            return;
+        }
+        const el = document.getElementById('navUserName');
+        if (el) el.textContent = userInfo.realName || userInfo.username || '';
+    })();
+
+    async function logout() {
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+            } catch (e) { /* ignore */ }
+        }
+        localStorage.clear();
+        window.location.href = '/login';
+    }
+</script>
+</body>
+</html>

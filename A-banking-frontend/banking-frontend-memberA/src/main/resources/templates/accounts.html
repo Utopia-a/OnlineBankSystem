@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账户管理 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/nav :: navbar}"></div>
+
+<div class="page-container">
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+            <h2>账户管理</h2>
+            <p class="subtitle">管理您名下的所有银行账户</p>
+        </div>
+        <button class="btn btn-primary" onclick="showOpenAccountModal()">+ 新增开户</button>
+    </div>
+
+    <div id="accountList">
+        <div class="loading-placeholder">加载中...</div>
+    </div>
+</div>
+
+<!-- 开户 Modal -->
+<div class="modal" id="openAccountModal" style="display:none">
+    <div class="modal-box">
+        <h3>新增开户</h3>
+        <div class="form-group">
+            <label>账户类型</label>
+            <select id="accountType" class="form-control">
+                <option value="SAVINGS">储蓄账户 - 享受利息，适合长期存储</option>
+                <option value="CHECKING">活期账户 - 随存随取，方便日常消费</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('openAccountModal')">取消</button>
+            <button class="btn btn-primary" onclick="openAccount()">确认开户</button>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/app.js}"></script>
+<script>
+    async function loadAccounts() {
+        const container = document.getElementById('accountList');
+        try {
+            const accounts = await apiGet('/api/accounts/my');
+            if (!accounts.length) {
+                container.innerHTML = '<div class="empty-tip">您还没有银行账户，<a href="javascript:showOpenAccountModal()">立即开户</a></div>';
+                return;
+            }
+            container.innerHTML = accounts.map(a => `
+                <div class="card account-detail-card">
+                    <div class="account-detail-header">
+                        <div>
+                            <span class="account-type-tag">${a.accountType === 'SAVINGS' ? '储蓄账户' : '活期账户'}</span>
+                            <span class="account-no-full">${a.accountNo}</span>
+                        </div>
+                        <span class="badge badge-${a.status.toLowerCase()}">${a.status === 'ACTIVE' ? '正常' : a.status === 'FROZEN' ? '已冻结' : '已注销'}</span>
+                    </div>
+                    <div class="account-detail-body">
+                        <div class="detail-item">
+                            <span class="detail-label">账户余额</span>
+                            <span class="detail-value balance-big">¥ ${formatAmount(a.balance)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">货币类型</span>
+                            <span class="detail-value">${a.currency || 'CNY'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">开户时间</span>
+                            <span class="detail-value">${formatDate(a.createTime)}</span>
+                        </div>
+                    </div>
+                    <div class="account-detail-actions">
+                        <a href="/transactions?accountNo=${a.accountNo}" class="btn btn-secondary btn-sm">查看交易记录</a>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshBalance('${a.accountNo}', this)">刷新余额</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch(e) {
+            container.innerHTML = '<p style="color:#e53935">加载失败：' + e.message + '</p>';
+        }
+    }
+
+    async function refreshBalance(accountNo, btn) {
+        btn.disabled = true;
+        btn.textContent = '刷新中...';
+        try {
+            const data = await apiGet('/api/accounts/' + accountNo + '/balance');
+            alert('当前余额：¥' + formatAmount(data.balance));
+            loadAccounts();
+        } catch(e) {
+            alert('查询失败：' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '刷新余额';
+        }
+    }
+
+    function showOpenAccountModal() {
+        document.getElementById('openAccountModal').style.display = 'flex';
+    }
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    async function openAccount() {
+        const type = document.getElementById('accountType').value;
+        try {
+            const data = await apiPost('/api/accounts?type=' + type, null);
+            alert('开户成功！账户号：' + data.accountNo);
+            closeModal('openAccountModal');
+            loadAccounts();
+        } catch(e) {
+            alert('开户失败：' + e.message);
+        }
+    }
+
+    loadAccounts();
+</script>
+</body>
+</html>

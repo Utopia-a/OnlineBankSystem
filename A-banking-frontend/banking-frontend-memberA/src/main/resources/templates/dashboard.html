@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/nav :: navbar}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <h2>欢迎回来，<span id="welcomeName">用户</span></h2>
+        <p class="subtitle">以下是您的账户概览</p>
+    </div>
+
+    <!-- 账户卡片区 -->
+    <div class="card-grid" id="accountCards">
+        <div class="loading-placeholder">加载账户信息中...</div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="section-title">快捷操作</div>
+    <div class="quick-actions">
+        <a href="/transfer" class="quick-btn">
+            <span class="icon">↔️</span>
+            <span>转账汇款</span>
+        </a>
+        <a href="/transactions" class="quick-btn">
+            <span class="icon">📋</span>
+            <span>交易记录</span>
+        </a>
+        <a href="/accounts" class="quick-btn">
+            <span class="icon">🏦</span>
+            <span>账户管理</span>
+        </a>
+        <button class="quick-btn" onclick="showDepositModal()">
+            <span class="icon">💰</span>
+            <span>存款</span>
+        </button>
+        <button class="quick-btn" onclick="showWithdrawModal()">
+            <span class="icon">💳</span>
+            <span>取款</span>
+        </button>
+    </div>
+
+    <!-- 最近交易 -->
+    <div class="section-title">最近交易</div>
+    <div class="card">
+        <table class="data-table" id="recentTable">
+            <thead>
+                <tr>
+                    <th>交易ID</th>
+                    <th>类型</th>
+                    <th>金额</th>
+                    <th>时间</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody id="recentTableBody">
+                <tr><td colspan="5" class="text-center">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 存款 Modal -->
+<div class="modal" id="depositModal" style="display:none">
+    <div class="modal-box">
+        <h3>存款</h3>
+        <div class="form-group">
+            <label>选择账户</label>
+            <select id="depositAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+            <label>存款金额（元）</label>
+            <input type="number" id="depositAmount" class="form-control" placeholder="请输入金额" min="0.01" step="0.01">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('depositModal')">取消</button>
+            <button class="btn btn-primary" onclick="doDeposit()">确认存款</button>
+        </div>
+    </div>
+</div>
+
+<!-- 取款 Modal -->
+<div class="modal" id="withdrawModal" style="display:none">
+    <div class="modal-box">
+        <h3>取款</h3>
+        <div class="form-group">
+            <label>选择账户</label>
+            <select id="withdrawAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+            <label>取款金额（元）</label>
+            <input type="number" id="withdrawAmount" class="form-control" placeholder="请输入金额" min="0.01" step="0.01">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('withdrawModal')">取消</button>
+            <button class="btn btn-primary" onclick="doWithdraw()">确认取款</button>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/app.js}"></script>
+<script>
+    let myAccounts = [];
+
+    async function loadDashboard() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        document.getElementById('welcomeName').textContent = userInfo.realName || userInfo.username || '用户';
+
+        // 加载账户
+        try {
+            myAccounts = await apiGet('/api/accounts/my');
+            renderAccountCards(myAccounts);
+            fillAccountSelects(myAccounts);
+        } catch(e) {
+            document.getElementById('accountCards').innerHTML = '<p style="color:#e53935">账户加载失败：' + e.message + '</p>';
+        }
+
+        // 加载最近交易（取第一个账户的最近5条）
+        if (myAccounts.length > 0) {
+            try {
+                const result = await apiGet('/api/bills/history?accountNo=' + myAccounts[0].accountNo + '&page=1&pageSize=5');
+                renderRecentTransactions(result.records || []);
+            } catch(e) {
+                document.getElementById('recentTableBody').innerHTML = '<tr><td colspan="5" class="text-center">加载失败</td></tr>';
+            }
+        } else {
+            document.getElementById('recentTableBody').innerHTML = '<tr><td colspan="5" class="text-center">暂无交易记录</td></tr>';
+        }
+    }
+
+    function renderAccountCards(accounts) {
+        const container = document.getElementById('accountCards');
+        if (!accounts.length) {
+            container.innerHTML = '<div class="empty-tip">暂无银行账户，<a href="/accounts">立即开户</a></div>';
+            return;
+        }
+        container.innerHTML = accounts.map(a => `
+            <div class="account-card">
+                <div class="account-type">${a.accountType === 'SAVINGS' ? '储蓄账户' : '活期账户'}</div>
+                <div class="account-no">${maskAccountNo(a.accountNo)}</div>
+                <div class="account-balance">¥ ${formatAmount(a.balance)}</div>
+                <div class="account-status ${a.status === 'ACTIVE' ? 'status-active' : 'status-frozen'}">
+                    ${a.status === 'ACTIVE' ? '正常' : a.status === 'FROZEN' ? '冻结' : '注销'}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderRecentTransactions(records) {
+        const tbody = document.getElementById('recentTableBody');
+        if (!records.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">暂无交易记录</td></tr>';
+            return;
+        }
+        tbody.innerHTML = records.map(t => `
+            <tr>
+                <td><span class="mono">${t.transactionId}</span></td>
+                <td>${formatTxnType(t.transactionType)}</td>
+                <td class="${t.transactionType === 'DEPOSIT' ? 'amount-in' : 'amount-out'}">
+                    ${t.transactionType === 'DEPOSIT' ? '+' : '-'} ¥${formatAmount(t.amount)}
+                </td>
+                <td>${formatDate(t.transactionTime)}</td>
+                <td><span class="badge badge-${t.status.toLowerCase()}">${formatStatus(t.status)}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function fillAccountSelects(accounts) {
+        const opts = accounts.map(a => `<option value="${a.accountNo}">${maskAccountNo(a.accountNo)} (¥${formatAmount(a.balance)})</option>`).join('');
+        document.getElementById('depositAccount').innerHTML = opts;
+        document.getElementById('withdrawAccount').innerHTML = opts;
+    }
+
+    function showDepositModal() {
+        document.getElementById('depositModal').style.display = 'flex';
+    }
+    function showWithdrawModal() {
+        document.getElementById('withdrawModal').style.display = 'flex';
+    }
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    async function doDeposit() {
+        const accountNo = document.getElementById('depositAccount').value;
+        const amount = parseFloat(document.getElementById('depositAmount').value);
+        if (!amount || amount <= 0) { alert('请输入正确金额'); return; }
+        try {
+            await apiPost('/api/transactions/deposit', { accountNo, amount });
+            alert('存款成功！');
+            closeModal('depositModal');
+            loadDashboard();
+        } catch(e) { alert('存款失败：' + e.message); }
+    }
+
+    async function doWithdraw() {
+        const accountNo = document.getElementById('withdrawAccount').value;
+        const amount = parseFloat(document.getElementById('withdrawAmount').value);
+        if (!amount || amount <= 0) { alert('请输入正确金额'); return; }
+        try {
+            await apiPost('/api/transactions/withdraw', { accountNo, amount });
+            alert('取款成功！');
+            closeModal('withdrawModal');
+            loadDashboard();
+        } catch(e) { alert('取款失败：' + e.message); }
+    }
+
+    loadDashboard();
+</script>
+</body>
+</html>

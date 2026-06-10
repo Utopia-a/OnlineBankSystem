@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>转账汇款 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/nav :: navbar}"></div>
+
+<div class="page-container" style="max-width: 600px;">
+    <div class="page-header">
+        <h2>转账汇款</h2>
+        <p class="subtitle">安全快速，实时到账</p>
+    </div>
+
+    <div class="card">
+        <div class="form-group">
+            <label>付款账户</label>
+            <select id="fromAccount" class="form-control" onchange="updateBalance()">
+                <option value="">-- 请选择付款账户 --</option>
+            </select>
+            <div id="fromBalance" class="hint"></div>
+        </div>
+
+        <div class="form-group">
+            <label>收款账户号</label>
+            <input type="text" id="toAccount" class="form-control" placeholder="请输入对方账户号" maxlength="20">
+        </div>
+
+        <div class="form-group">
+            <label>转账金额（元）</label>
+            <input type="number" id="amount" class="form-control" placeholder="请输入金额" min="0.01" max="1000000" step="0.01"
+                   oninput="checkOtpRequired()">
+        </div>
+
+        <div class="form-group">
+            <label>备注（选填）</label>
+            <input type="text" id="remark" class="form-control" placeholder="如：房租、餐费等" maxlength="100">
+        </div>
+
+        <div class="form-group" id="otpGroup" style="display:none">
+            <label>OTP 验证码 <span style="color:red">*</span> <span style="color:#888;font-size:12px">（大额转账需要验证）</span></label>
+            <div style="display:flex;gap:10px">
+                <input type="text" id="otpCode" class="form-control" placeholder="6位验证码" maxlength="6" style="flex:1">
+                <button class="btn btn-secondary" onclick="sendOtp()" style="white-space:nowrap">发送验证码</button>
+            </div>
+        </div>
+
+        <div class="transfer-summary" id="summary" style="display:none">
+            <div class="summary-row"><span>付款账户：</span><span id="summaryFrom">-</span></div>
+            <div class="summary-row"><span>收款账户：</span><span id="summaryTo">-</span></div>
+            <div class="summary-row"><span>转账金额：</span><span id="summaryAmount" class="amount-out">-</span></div>
+        </div>
+
+        <div class="error-msg" id="errorMsg" style="display:none"></div>
+
+        <div class="form-actions">
+            <a href="/dashboard" class="btn btn-secondary">取消</a>
+            <button class="btn btn-primary" onclick="confirmTransfer()">确认转账</button>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/app.js}"></script>
+<script>
+    let myAccounts = [];
+
+    async function init() {
+        try {
+            myAccounts = await apiGet('/api/accounts/my');
+            const select = document.getElementById('fromAccount');
+            myAccounts.filter(a => a.status === 'ACTIVE').forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.accountNo;
+                opt.textContent = maskAccountNo(a.accountNo) + ' (' + a.accountType + ')';
+                opt.dataset.balance = a.balance;
+                select.appendChild(opt);
+            });
+        } catch(e) {
+            showError('账户加载失败：' + e.message);
+        }
+    }
+
+    function updateBalance() {
+        const select = document.getElementById('fromAccount');
+        const opt = select.options[select.selectedIndex];
+        if (opt && opt.dataset.balance) {
+            document.getElementById('fromBalance').textContent = '可用余额：¥' + formatAmount(opt.dataset.balance);
+        } else {
+            document.getElementById('fromBalance').textContent = '';
+        }
+    }
+
+    function checkOtpRequired() {
+        const amount = parseFloat(document.getElementById('amount').value);
+        document.getElementById('otpGroup').style.display = (amount > 5000) ? 'block' : 'none';
+    }
+
+    async function sendOtp() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const token = localStorage.getItem('accessToken');
+        try {
+            await fetch('/api/auth/otp/send?phone=' + (userInfo.phone || ''), {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            alert('验证码已发送');
+        } catch(e) {
+            showError('发送失败：' + e.message);
+        }
+    }
+
+    async function confirmTransfer() {
+        const fromAccountNo = document.getElementById('fromAccount').value;
+        const toAccountNo = document.getElementById('toAccount').value.trim();
+        const amount = parseFloat(document.getElementById('amount').value);
+        const remark = document.getElementById('remark').value.trim();
+        const otpCode = document.getElementById('otpCode').value.trim();
+
+        if (!fromAccountNo) { showError('请选择付款账户'); return; }
+        if (!toAccountNo) { showError('请输入收款账户号'); return; }
+        if (fromAccountNo === toAccountNo) { showError('付款账户和收款账户不能相同'); return; }
+        if (!amount || amount <= 0) { showError('请输入正确的转账金额'); return; }
+        if (amount > 5000 && !otpCode) { showError('大额转账需要输入OTP验证码'); return; }
+
+        if (!confirm(`确认转账 ¥${formatAmount(amount)} 至账户 ${toAccountNo}？`)) return;
+
+        try {
+            const result = await apiPost('/api/transactions/transfer', {
+                fromAccountNo, toAccountNo, amount, remark: remark || undefined, otpCode: otpCode || undefined
+            });
+            alert('转账成功！交易ID：' + result.transactionId);
+            window.location.href = '/dashboard';
+        } catch(e) {
+            showError('转账失败：' + e.message);
+        }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    init();
+</script>
+</body>
+</html>
