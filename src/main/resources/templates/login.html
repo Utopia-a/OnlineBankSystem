@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            margin: 0;
+        }
+        .login-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 48px 40px;
+            width: 380px;
+        }
+        .bank-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .bank-logo h1 {
+            font-size: 24px;
+            color: #1a3a5c;
+            margin: 0;
+            font-weight: 700;
+        }
+        .bank-logo p {
+            color: #888;
+            font-size: 13px;
+            margin: 6px 0 0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .form-group input:focus {
+            border-color: #2d6a9f;
+        }
+        .otp-row {
+            display: flex;
+            gap: 10px;
+        }
+        .otp-row input {
+            flex: 1;
+        }
+        .btn-send-otp {
+            padding: 12px 14px;
+            background: #eef4fb;
+            color: #2d6a9f;
+            border: 1.5px solid #2d6a9f;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 13px;
+            background: #2d6a9f;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .btn-login:hover { background: #1a3a5c; }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #888;
+        }
+        .links a { color: #2d6a9f; text-decoration: none; }
+        .error-msg {
+            background: #fff0f0;
+            color: #d32f2f;
+            border: 1px solid #ffc5c5;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .verify-prompt {
+            background: #fff8e6;
+            border: 1px solid #ffe082;
+            border-radius: 6px;
+            padding: 12px 14px;
+            font-size: 13px;
+            color: #856404;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .verify-prompt a {
+            color: #2d6a9f;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .otp-section { display: none; }
+    </style>
+</head>
+<body>
+<div class="login-card">
+    <div class="bank-logo">
+        <h1>🏦 网上银行系统</h1>
+        <p>安全、便捷的在线金融服务</p>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="verify-prompt" id="verifyPrompt">
+        账户尚未完成邮箱验证，请先
+        <a href="#" id="verifyLink">验证邮箱</a>
+        后再登录。
+    </div>
+
+    <div class="form-group">
+        <label for="username">用户名</label>
+        <input type="text" id="username" placeholder="请输入用户名" maxlength="20">
+    </div>
+
+    <div class="form-group">
+        <label for="password">密码</label>
+        <input type="password" id="password" placeholder="请输入密码" maxlength="32">
+    </div>
+
+    <div class="form-group otp-section" id="otpSection">
+        <label>OTP 验证码</label>
+        <div class="otp-row">
+            <input type="text" id="otpCode" placeholder="请输入6位验证码" maxlength="6">
+            <button class="btn-send-otp" onclick="sendOtp()">发送验证码</button>
+        </div>
+    </div>
+
+    <button class="btn-login" onclick="login()">登 录</button>
+
+    <div class="links">
+        还没有账户？<a href="/register">立即注册</a>
+    </div>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script>
+    async function login() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const otpCode = document.getElementById('otpCode').value.trim();
+
+        if (!username || !password) {
+            showError('请输入用户名和密码');
+            return;
+        }
+
+        try {
+            const data = await apiPost('/api/auth/login', { username, password, otpCode: otpCode || undefined });
+
+            if (data.requireOtp && !otpCode) {
+                document.getElementById('otpSection').style.display = 'block';
+                showError('该账户已开启双因素认证，请输入OTP验证码');
+                return;
+            }
+
+            // 存储 token 信息
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+            localStorage.setItem('userInfo', JSON.stringify({
+                userId: data.userId,
+                username: data.username,
+                realName: data.realName,
+                role: data.role
+            }));
+
+            window.location.href = '/dashboard';
+        } catch (e) {
+            const msg = e.message || '登录失败，请检查用户名和密码';
+            showError(msg);
+            if (msg.includes('邮箱验证') || msg.includes('验证')) {
+                showVerifyPrompt(username);
+            } else {
+                hideVerifyPrompt();
+            }
+        }
+    }
+
+    function showVerifyPrompt(username) {
+        const el = document.getElementById('verifyPrompt');
+        const link = document.getElementById('verifyLink');
+        link.href = '/verify-email?username=' + encodeURIComponent(username);
+        el.style.display = 'block';
+    }
+
+    function hideVerifyPrompt() {
+        document.getElementById('verifyPrompt').style.display = 'none';
+    }
+
+    async function sendOtp() {
+        const username = document.getElementById('username').value.trim();
+        if (!username) {
+            showError('请先输入用户名');
+            return;
+        }
+        try {
+            await apiPost('/api/auth/otp/send?phone=' + username, null);
+            alert('验证码已发送，请注意查收短信');
+        } catch (e) {
+            showError(e.message || '发送失败');
+        }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    // Enter 键登录
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Enter') login();
+    });
+
+    // 验证成功返回登录页
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('verified') === '1') {
+        showError('');
+        document.getElementById('errorMsg').style.display = 'none';
+        const tip = document.createElement('div');
+        tip.className = 'verify-prompt';
+        tip.style.display = 'block';
+        tip.style.background = '#f0fff4';
+        tip.style.borderColor = '#a5d6a7';
+        tip.style.color = '#2e7d32';
+        tip.textContent = '邮箱已验证成功，请登录您的账户。';
+        document.querySelector('.login-card').insertBefore(tip, document.getElementById('errorMsg'));
+    }
+</script>
+</body>
+</html>
