@@ -16,7 +16,7 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <name>Online Bank System</name>
-    <description>网上银行系统 - 单体整合应用</description>
+    <description>网上银行系统 - 单体 Maven 应用（唯一 src，无子模块）</description>
 
     <properties>
         <java.version>17</java.version>

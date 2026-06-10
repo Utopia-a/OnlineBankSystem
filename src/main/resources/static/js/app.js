@@ -63,7 +63,9 @@ function formatStatus(status) {
     const map = {
         'SUCCESS': '成功',
         'FAILED':  '失败',
-        'PENDING': '处理中'
+        'PENDING': '处理中',
+        'CANCELLED': '已撤销',
+        'ROLLED_BACK': '已回滚'
     };
     return map[status] || status;
 }

@@ -115,3 +115,30 @@ CREATE TABLE IF NOT EXISTS transactions (
     KEY idx_to_account (to_account_id),
     KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易记录表';
+
+-- ------------------------------------------------------------
+-- 系统配置表（管理员模块 F 维护）
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS system_config (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    config_key   VARCHAR(100) NOT NULL,
+    config_value TEXT         NOT NULL,
+    description  VARCHAR(255) NULL,
+    updated_by   BIGINT       NULL,
+    created_at   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at   DATETIME(6)  NULL ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_config_key (config_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
+
+-- 初始化系统配置
+INSERT IGNORE INTO system_config (config_key, config_value, description) VALUES
+('max_transfer_amount', '50000.00', '单笔最大转账金额（元）'),
+('max_withdraw_amount', '20000.00', '单笔最大取款金额（元）'),
+('daily_transfer_limit', '200000.00', '每日转账限额（元）'),
+('login_max_retry',      '5',         '最大登录失败次数，超出则锁定账户'),
+('account_lock_minutes', '30',        '账户锁定时长（分钟）');
+
+-- 初始化管理员账号（密码：Admin@123）
+INSERT IGNORE INTO users (username, email, password, full_name, status, role, email_verified) VALUES
+('admin', 'admin@bank.com', '$2a$12$F12P8v5vI5133AEN7GlJRuRdF9fCIFVe2.Qk52QSk9hHtJ8u0NfL6', '系统管理员', 'ACTIVE', 'ROLE_ADMIN', 1);

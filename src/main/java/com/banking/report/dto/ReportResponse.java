@@ -115,6 +115,7 @@ public class ReportResponse {
                 case FAILED      -> "失败";
                 case PENDING     -> "处理中";
                 case ROLLED_BACK -> "已回滚";
+                case CANCELLED   -> "已撤销";
             };
         }
     }
