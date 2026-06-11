@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邮箱验证 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body class="auth-page">
+<div class="auth-shell">
+    <aside class="auth-aside">
+        <div class="auth-aside-inner">
+            <div class="brand-mark">✦</div>
+            <h1 class="display-xl">邮箱验证</h1>
+            <p class="auth-tagline">完成验证后即可登录，开始使用网上银行的全部功能。</p>
+        </div>
+    </aside>
+
+    <main class="auth-main">
+        <div class="auth-card">
+            <p class="caption-upper">Verify email</p>
+            <h2 class="auth-card-title">输入验证码</h2>
+            <p class="auth-card-subtitle">请输入发送到邮箱的 6 位验证码</p>
+
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="success-msg" id="successMsg"></div>
+
+            <div id="loadingArea" class="loading-text">正在加载账户信息…</div>
+
+            <div id="verifyArea" style="display:none">
+                <div class="email-display" id="emailDisplay"></div>
+                <div class="dev-hint">开发环境：验证码会输出在服务端控制台，格式为 <code>[OTP 模拟发送]</code></div>
+
+                <div class="form-group">
+                    <label>验证码</label>
+                    <div class="otp-row">
+                        <input type="text" id="otpCode" class="form-control" placeholder="000000" maxlength="6"
+                               inputmode="numeric" autocomplete="one-time-code"
+                               style="letter-spacing:6px;text-align:center;font-size:18px;">
+                        <button type="button" class="btn-resend" id="btnResend" onclick="resendOtp()">重新发送</button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary btn-block" onclick="verifyEmail()">验证并激活账户</button>
+                <div class="auth-links">验证完成后 <a href="/login">前往登录</a></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/auth-verify.js}"></script>
+<script>
+    let verifyEmailTarget = '';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const params = new URLSearchParams(window.location.search);
+        const username = params.get('username');
+        if (!username) {
+            hideLoading();
+            showError('缺少用户名参数，请从登录或注册页面进入');
+            return;
+        }
+        try {
+            const data = await apiGet('/api/auth/pending-verification?username=' + encodeURIComponent(username));
+            verifyEmailTarget = data.email;
+            document.getElementById('emailDisplay').textContent =
+                '验证码已发送至 ' + (data.maskedEmail || data.email);
+            hideLoading();
+            document.getElementById('verifyArea').style.display = 'block';
+            document.getElementById('otpCode').focus();
+        } catch (e) {
+            hideLoading();
+            showError(e.message || '无法加载验证信息');
+        }
+    });
+
+    async function verifyEmail() {
+        const code = document.getElementById('otpCode').value.trim();
+        if (!/^\d{6}$/.test(code)) {
+            showError('请输入 6 位数字验证码');
+            return;
+        }
+        try {
+            await submitEmailVerify(verifyEmailTarget, code);
+            showSuccess('邮箱验证成功！即将跳转到登录页…');
+            setTimeout(() => { window.location.href = '/login?verified=1'; }, 1500);
+        } catch (e) {
+            showError(e.message || '验证失败');
+        }
+    }
+
+    async function resendOtp() {
+        const btn = document.getElementById('btnResend');
+        if (btn.disabled) return;
+        try {
+            await submitResendOtp(verifyEmailTarget);
+            showSuccess('验证码已重新发送（开发环境请查看控制台）');
+            startResendCooldown(btn, 60);
+        } catch (e) {
+            showError(e.message || '发送失败');
+        }
+    }
+
+    function hideLoading() {
+        document.getElementById('loadingArea').style.display = 'none';
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('successMsg').style.display = 'none';
+    }
+
+    function showSuccess(msg) {
+        const el = document.getElementById('successMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    document.getElementById('otpCode').addEventListener('keydown', e => {
+        if (e.key === 'Enter') verifyEmail();
+    });
+</script>
+</body>
+</html>

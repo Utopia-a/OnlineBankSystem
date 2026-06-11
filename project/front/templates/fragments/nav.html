@@ -3,13 +3,17 @@
 <body>
 <nav th:fragment="navbar" class="navbar">
     <div class="navbar-brand">
-        <a href="/dashboard">🏦 网上银行系统</a>
+        <a href="/dashboard">
+            <span class="brand-mark">✦</span>
+            <span>网上银行系统</span>
+        </a>
     </div>
     <div class="navbar-menu">
-        <a href="/dashboard" class="nav-link">首页</a>
-        <a href="/accounts" class="nav-link">账户管理</a>
-        <a href="/transfer" class="nav-link">转账汇款</a>
-        <a href="/transactions" class="nav-link">交易记录</a>
+        <a href="/dashboard" class="nav-link" data-path="/dashboard">首页</a>
+        <a href="/accounts" class="nav-link" data-path="/accounts">账户管理</a>
+        <a href="/transfer" class="nav-link" data-path="/transfer">转账汇款</a>
+        <a href="/transactions" class="nav-link" data-path="/transactions">交易记录</a>
+        <a href="/profile" class="nav-link" data-path="/profile">个人中心</a>
     </div>
     <div class="navbar-user">
         <span id="navUserName" class="nav-username"></span>
@@ -25,6 +29,13 @@
         }
         const el = document.getElementById('navUserName');
         if (el) el.textContent = userInfo.realName || userInfo.username || '';
+
+        const path = window.location.pathname;
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if (link.getAttribute('data-path') === path) {
+                link.classList.add('active');
+            }
+        });
     })();
 
     async function logout() {

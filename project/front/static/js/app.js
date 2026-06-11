@@ -90,14 +90,20 @@ function debounce(fn, delay = 300) {
  * @param {'success'|'error'|'info'} type
  */
 function toast(msg, type = 'info') {
+    const colors = {
+        error:   { bg: '#c64545', text: '#fff' },
+        success: { bg: '#5db872', text: '#fff' },
+        info:    { bg: '#181715', text: '#faf9f5' }
+    };
+    const c = colors[type] || colors.info;
     const el = document.createElement('div');
     el.textContent = msg;
     el.style.cssText = `
-        position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
-        background: ${type === 'error' ? '#c62828' : type === 'success' ? '#2e7d32' : '#1a3a5c'};
-        color: #fff; padding: 12px 24px; border-radius: 8px;
-        font-size: 14px; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        animation: fadeIn 0.2s ease;
+        position: fixed; top: calc(64px + 16px); left: 50%; transform: translateX(-50%);
+        background: ${c.bg}; color: ${c.text};
+        padding: 12px 24px; border-radius: 8px;
+        font-size: 14px; font-weight: 500; font-family: Inter, sans-serif;
+        z-index: 9999; box-shadow: 0 1px 3px rgba(20,20,19,0.12);
     `;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 3000);

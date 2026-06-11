@@ -1,13 +1,4 @@
-# Maven 编译输出
-target/
-
-# 旧多模块目录（已合并为单体，勿再提交）
-A-banking-frontend/
-B_banking-auth/
-C_member-c/
-D_transaction-service/
-E_banking-report/
-member-f-admin-module/
+# 编译输出
 **/target/
 
 # IDEA
