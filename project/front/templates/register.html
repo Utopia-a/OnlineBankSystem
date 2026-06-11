@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body class="auth-page">
+<div class="auth-shell">
+    <aside class="auth-aside">
+        <div class="auth-aside-inner">
+            <div class="brand-mark">✦</div>
+            <h1 class="display-xl">开通网上银行</h1>
+            <p class="auth-tagline">几分钟完成注册，即刻享受安全便捷的在线金融服务。</p>
+            <ul class="auth-features">
+                <li>注册后邮箱验证，保障账户安全</li>
+                <li>支持储蓄与活期账户</li>
+                <li>密码加密存储，符合银行级安全标准</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main class="auth-main">
+        <div class="auth-card auth-card-wide">
+            <p class="caption-upper" id="pageCaption">Register</p>
+            <h2 class="auth-card-title" id="pageTitle">创建您的账户</h2>
+            <p class="auth-card-subtitle" id="pageSubtitle">填写以下信息完成注册</p>
+
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="success-msg" id="successMsg"></div>
+
+            <div id="registerStep">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>用户名 <span class="required">*</span></label>
+                        <input type="text" id="username" class="form-control" placeholder="4-20位字母数字">
+                        <div class="hint">仅限字母、数字和下划线</div>
+                    </div>
+                    <div class="form-group">
+                        <label>真实姓名 <span class="required">*</span></label>
+                        <input type="text" id="realName" class="form-control" placeholder="请输入真实姓名">
+                    </div>
+                    <div class="form-group">
+                        <label>登录密码 <span class="required">*</span></label>
+                        <input type="password" id="password" class="form-control" placeholder="至少8位，含大小写和数字">
+                        <div class="hint">须包含大写字母、小写字母和数字</div>
+                    </div>
+                    <div class="form-group">
+                        <label>确认密码 <span class="required">*</span></label>
+                        <input type="password" id="confirmPassword" class="form-control" placeholder="再次输入密码">
+                    </div>
+                    <div class="form-group">
+                        <label>手机号 <span class="required">*</span></label>
+                        <input type="tel" id="phone" class="form-control" placeholder="11位手机号" maxlength="11">
+                    </div>
+                    <div class="form-group">
+                        <label>电子邮箱</label>
+                        <input type="email" id="email" class="form-control" placeholder="选填，默认 username@bank.local">
+                    </div>
+                    <div class="form-group full">
+                        <label>身份证号 <span class="required">*</span></label>
+                        <input type="text" id="idCard" class="form-control" placeholder="18位居民身份证号码" maxlength="18">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" onclick="register()">立即注册</button>
+                <div class="auth-links">已有账户？<a href="/login">返回登录</a></div>
+            </div>
+
+            <div id="verifyStep" style="display:none">
+                <div class="email-display" id="verifyEmailDisplay"></div>
+                <div class="dev-hint">开发环境：验证码会输出在服务端控制台，格式为 <code>[OTP 模拟发送]</code></div>
+                <div class="form-group">
+                    <label>邮箱验证码 <span class="required">*</span></label>
+                    <div class="otp-row">
+                        <input type="text" id="otpCode" class="form-control" placeholder="000000" maxlength="6"
+                               inputmode="numeric" autocomplete="one-time-code" style="letter-spacing:4px;text-align:center;font-size:18px;">
+                        <button type="button" class="btn-resend" id="btnResend" onclick="resendOtp()">重新发送</button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" onclick="verifyEmail()">验证并激活账户</button>
+                <div class="auth-links">稍后验证？<a href="/login">先去登录</a></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script th:src="@{/static/js/auth-verify.js}"></script>
+<script>
+    let verifyEmailTarget = '';
+
+    async function register() {
+        const username = document.getElementById('username').value.trim();
+        const realName = document.getElementById('realName').value.trim();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const phone = document.getElementById('phone').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const idCard = document.getElementById('idCard').value.trim();
+
+        if (!username || !realName || !password || !phone || !idCard) {
+            showError('请填写所有必填项');
+            return;
+        }
+        if (password !== confirmPassword) {
+            showError('两次输入的密码不一致');
+            return;
+        }
+        if (password.length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
+            showError('密码至少8位，且须包含大写字母、小写字母和数字');
+            return;
+        }
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            showError('邮箱格式不正确，请留空或填写有效邮箱');
+            return;
+        }
+        if (!/^1[3-9]\d{9}$/.test(phone)) {
+            showError('请输入正确的手机号');
+            return;
+        }
+        if (idCard.length !== 18) {
+            showError('身份证号应为18位');
+            return;
+        }
+
+        try {
+            const data = await apiPost('/api/auth/register', {
+                username, realName, password, confirmPassword, phone,
+                email: email || undefined, idCard
+            });
+            verifyEmailTarget = data.email;
+            showVerifyStep(data);
+        } catch (e) {
+            showError(e.message || '注册失败，请稍后重试');
+        }
+    }
+
+    function showVerifyStep(data) {
+        document.getElementById('registerStep').style.display = 'none';
+        document.getElementById('verifyStep').style.display = 'block';
+        document.getElementById('pageCaption').textContent = 'Verify';
+        document.getElementById('pageTitle').textContent = '验证您的邮箱';
+        document.getElementById('pageSubtitle').textContent = '请输入发送到邮箱的 6 位验证码';
+        document.getElementById('verifyEmailDisplay').textContent =
+            '验证码已发送至 ' + (data.maskedEmail || data.email);
+        document.getElementById('errorMsg').style.display = 'none';
+        document.getElementById('otpCode').value = '';
+        document.getElementById('otpCode').focus();
+    }
+
+    async function verifyEmail() {
+        const code = document.getElementById('otpCode').value.trim();
+        if (!/^\d{6}$/.test(code)) {
+            showError('请输入 6 位数字验证码');
+            return;
+        }
+        try {
+            await submitEmailVerify(verifyEmailTarget, code);
+            showSuccess('邮箱验证成功！即将跳转到登录页…');
+            setTimeout(() => { window.location.href = '/login?verified=1'; }, 1500);
+        } catch (e) {
+            showError(e.message || '验证失败，请检查验证码');
+        }
+    }
+
+    async function resendOtp() {
+        const btn = document.getElementById('btnResend');
+        if (btn.disabled) return;
+        try {
+            await submitResendOtp(verifyEmailTarget);
+            showSuccess('验证码已重新发送（开发环境请查看控制台）');
+            startResendCooldown(btn, 60);
+        } catch (e) {
+            showError(e.message || '发送失败');
+        }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('successMsg').style.display = 'none';
+    }
+
+    function showSuccess(msg) {
+        const el = document.getElementById('successMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    document.getElementById('otpCode').addEventListener('keydown', e => {
+        if (e.key === 'Enter') verifyEmail();
+    });
+</script>
+</body>
+</html>

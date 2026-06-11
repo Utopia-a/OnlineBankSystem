@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body class="auth-page">
+<div class="auth-shell">
+    <aside class="auth-aside">
+        <div class="auth-aside-inner">
+            <div class="brand-mark">✦</div>
+            <h1 class="display-xl">网上银行系统</h1>
+            <p class="auth-tagline">安全、便捷的在线金融服务，让每一笔交易都清晰可控。</p>
+            <ul class="auth-features">
+                <li>JWT 安全认证与邮箱验证</li>
+                <li>实时账户余额与交易记录</li>
+                <li>转账、存款、取款一站式管理</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main class="auth-main">
+        <div class="auth-card">
+            <p class="caption-upper">Sign in</p>
+            <h2 class="auth-card-title">欢迎回来</h2>
+            <p class="auth-card-subtitle">登录您的网上银行账户</p>
+
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="success-msg" id="successMsg"></div>
+            <div class="verify-prompt" id="verifyPrompt">
+                账户尚未完成邮箱验证，请先
+                <a href="#" id="verifyLink">验证邮箱</a>
+                后再登录。
+            </div>
+
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" class="form-control" placeholder="请输入用户名" maxlength="20">
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" class="form-control" placeholder="请输入密码" maxlength="32">
+            </div>
+
+            <div class="form-group otp-section" id="otpSection">
+                <label>OTP 验证码</label>
+                <div class="otp-row">
+                    <input type="text" id="otpCode" class="form-control" placeholder="6 位验证码" maxlength="6">
+                    <button type="button" class="btn-send-otp" onclick="sendOtp()">发送验证码</button>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-block" onclick="login()">登 录</button>
+
+            <div class="auth-links">
+                还没有账户？<a href="/register">立即注册</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script th:src="@{/static/js/api.js}"></script>
+<script>
+    async function login() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const otpCode = document.getElementById('otpCode').value.trim();
+
+        if (!username || !password) {
+            showError('请输入用户名和密码');
+            return;
+        }
+
+        try {
+            const data = await apiPost('/api/auth/login', { username, password, otpCode: otpCode || undefined });
+
+            if (data.requireOtp && !otpCode) {
+                document.getElementById('otpSection').style.display = 'block';
+                showError('该账户已开启双因素认证，请输入 OTP 验证码');
+                return;
+            }
+
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+            localStorage.setItem('userInfo', JSON.stringify({
+                userId: data.userId,
+                username: data.username,
+                realName: data.realName,
+                role: data.role
+            }));
+
+            window.location.href = '/dashboard';
+        } catch (e) {
+            const msg = e.message || '登录失败，请检查用户名和密码';
+            showError(msg);
+            if (msg.includes('邮箱验证') || msg.includes('验证')) {
+                showVerifyPrompt(username);
+            } else {
+                hideVerifyPrompt();
+            }
+        }
+    }
+
+    function showVerifyPrompt(username) {
+        const el = document.getElementById('verifyPrompt');
+        const link = document.getElementById('verifyLink');
+        link.href = '/verify-email?username=' + encodeURIComponent(username);
+        el.style.display = 'block';
+    }
+
+    function hideVerifyPrompt() {
+        document.getElementById('verifyPrompt').style.display = 'none';
+    }
+
+    async function sendOtp() {
+        const username = document.getElementById('username').value.trim();
+        if (!username) {
+            showError('请先输入用户名');
+            return;
+        }
+        try {
+            await apiPost('/api/auth/otp/send?phone=' + username, null);
+            alert('验证码已发送，请注意查收短信');
+        } catch (e) {
+            showError(e.message || '发送失败');
+        }
+    }
+
+    function showError(msg) {
+        hideSuccess();
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function showSuccess(msg) {
+        hideError();
+        const el = document.getElementById('successMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideError() {
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    function hideSuccess() {
+        document.getElementById('successMsg').style.display = 'none';
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Enter') login();
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('verified') === '1') {
+        showSuccess('邮箱已验证成功，请登录您的账户。');
+    }
+</script>
+</body>
+</html>
