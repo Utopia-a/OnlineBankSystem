@@ -6,6 +6,8 @@ import com.bank.account.dto.CreateAccountRequest;
 import com.bank.account.enums.AccountType;
 import com.bank.account.service.AccountService;
 import com.bank.dto.response.AccountResponse;
+import com.bank.transaction.exception.BusinessException;
+import com.banking.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class WebAccountController {
 
     private final AccountService accountService;
+    private final AuthService authService;
 
     @GetMapping("/my")
     public ApiResponse<List<AccountResponse>> getMyAccounts(
@@ -50,6 +53,10 @@ public class WebAccountController {
     public ApiResponse<AccountResponse> createAccount(
             @AuthenticationPrincipal BankUserDetails user,
             @RequestParam String type) {
+        if (user == null) {
+            throw new BusinessException(4010, "请先登录");
+        }
+        authService.verifyUserActive(user.getUserId());
         CreateAccountRequest req = new CreateAccountRequest();
         req.setAccountType(AccountType.valueOf(type));
         return ApiResponse.success("开户成功",

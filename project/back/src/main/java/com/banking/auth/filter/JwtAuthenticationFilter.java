@@ -48,7 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtUtil.extractUsername(token);
                 if (username != null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                    if (jwtUtil.isTokenValid(token, userDetails)) {
+                    if (jwtUtil.isTokenValid(token, userDetails)
+                            && userDetails.isEnabled()
+                            && userDetails.isAccountNonLocked()) {
                         Long userId = jwtUtil.extractUserId(token);
                         BankUserDetails principal = new BankUserDetails(
                                 userId, username, userDetails.getAuthorities());
@@ -58,6 +60,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);
                         log.debug("JWT 认证成功: user={} path={}", username, request.getRequestURI());
+                    } else if (jwtUtil.isTokenValid(token, userDetails)) {
+                        log.debug("JWT 有效但用户已冻结/禁用，拒绝认证: user={}", username);
                     }
                 }
             } catch (Exception e) {

@@ -77,10 +77,38 @@ public class ReportResponse {
         private LocalDateTime createdAt;
 
         public static TransactionDTO from(Transaction t) {
+            return fromForAccount(t, null);
+        }
+
+        /**
+         * 按当前查询账户视角转换交易记录（收款方看到的转账应为 TRANSFER_IN / 入账）
+         */
+        public static TransactionDTO fromForAccount(Transaction t, Long accountId) {
+            TransactionType displayType = t.getTransactionType();
             BigDecimal balanceBefore = t.getFromBalanceBefore() != null
                     ? t.getFromBalanceBefore() : t.getToBalanceBefore();
             BigDecimal balanceAfter = t.getFromBalanceAfter() != null
                     ? t.getFromBalanceAfter() : t.getToBalanceAfter();
+
+            if (accountId != null && t.getTransactionType() == TransactionType.TRANSFER_OUT) {
+                if (accountId.equals(t.getToAccountId())) {
+                    displayType = TransactionType.TRANSFER_IN;
+                    balanceBefore = t.getToBalanceBefore();
+                    balanceAfter = t.getToBalanceAfter();
+                } else if (accountId.equals(t.getFromAccountId())) {
+                    balanceBefore = t.getFromBalanceBefore();
+                    balanceAfter = t.getFromBalanceAfter();
+                }
+            } else if (t.getTransactionType() == TransactionType.DEPOSIT) {
+                balanceBefore = t.getToBalanceBefore();
+                balanceAfter = t.getToBalanceAfter();
+            } else if (t.getTransactionType() == TransactionType.WITHDRAWAL) {
+                balanceBefore = t.getFromBalanceBefore();
+                balanceAfter = t.getFromBalanceAfter();
+            } else if (t.getTransactionType() == TransactionType.TRANSFER_IN) {
+                balanceBefore = t.getToBalanceBefore();
+                balanceAfter = t.getToBalanceAfter();
+            }
 
             return TransactionDTO.builder()
                     .id(t.getId())
@@ -90,8 +118,8 @@ public class ReportResponse {
                     .amount(t.getAmount())
                     .balanceBefore(balanceBefore)
                     .balanceAfter(balanceAfter)
-                    .transactionType(t.getTransactionType() != null ? t.getTransactionType().name() : null)
-                    .transactionTypeLabel(labelType(t.getTransactionType()))
+                    .transactionType(displayType != null ? displayType.name() : null)
+                    .transactionTypeLabel(labelType(displayType))
                     .status(t.getStatus() != null ? t.getStatus().name() : null)
                     .statusLabel(labelStatus(t.getStatus()))
                     .remark(t.getRemark())

@@ -4,6 +4,7 @@ import com.bank.admin.dto.request.SystemConfigRequest;
 import com.bank.admin.entity.SystemConfig;
 import com.bank.admin.repository.SystemConfigRepository;
 import com.bank.admin.service.impl.SystemConfigServiceImpl;
+import com.bank.admin.support.AdminAuditHelper;
 import com.bank.transaction.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,9 @@ class SystemConfigServiceTest {
 
     @Mock
     private SystemConfigRepository systemConfigRepository;
+
+    @Mock
+    private AdminAuditHelper adminAuditHelper;
 
     @InjectMocks
     private SystemConfigServiceImpl systemConfigService;

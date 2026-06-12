@@ -27,4 +27,10 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
     long countByStatus(User.UserStatus status);
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    boolean existsByUsername(String username);
+
+    boolean existsByEmail(String email);
+
+    boolean existsByPhone(String phone);
 }

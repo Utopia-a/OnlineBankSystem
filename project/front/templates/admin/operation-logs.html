@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作日志 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Audit Logs</p>
+        <h2>操作日志</h2>
+        <p class="subtitle">记录管理员在后台的关键操作</p>
+    </div>
+
+    <div class="toolbar">
+        <input type="text" id="keyword" class="form-control" placeholder="操作人/动作/详情">
+        <select id="moduleFilter" class="form-control">
+            <option value="">全部模块</option>
+            <option value="用户管理">用户管理</option>
+            <option value="账户管理">账户管理</option>
+            <option value="系统配置">系统配置</option>
+            <option value="交易监控">交易监控</option>
+            <option value="管理员管理">管理员管理</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadLogs(1)">查询</button>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>时间</th><th>操作人</th><th>模块</th><th>动作</th>
+                <th>目标</th><th>详情</th><th>IP</th>
+            </tr>
+            </thead>
+            <tbody id="logTableBody"></tbody>
+        </table>
+    </div>
+    <div class="pagination-bar" id="pagination"></div>
+</div>
+
+<script>
+    let currentPage = 1;
+
+    async function loadLogs(page) {
+        currentPage = page;
+        const q = buildQuery({
+            page, size: 15,
+            keyword: document.getElementById('keyword').value.trim(),
+            module: document.getElementById('moduleFilter').value
+        });
+        try {
+            const data = await adminGet('/api/admin/operation-logs?' + q);
+            const tbody = document.getElementById('logTableBody');
+            if (!data.records.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">暂无日志</td></tr>';
+            } else {
+                tbody.innerHTML = data.records.map(l => `
+                    <tr>
+                        <td>${formatDate(l.createdAt)}</td>
+                        <td>${l.operatorName || l.operatorId}</td>
+                        <td>${l.module}</td>
+                        <td>${l.action}</td>
+                        <td>${l.targetType || ''} ${l.targetId || ''}</td>
+                        <td>${l.detail || '-'}</td>
+                        <td>${l.ipAddress || '-'}</td>
+                    </tr>`).join('');
+            }
+            renderPagination('pagination', data, loadLogs);
+        } catch (e) { alert(e.message); }
+    }
+
+    function formatDate(v) {
+        if (!v) return '-';
+        return String(v).replace('T', ' ').slice(0, 19);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadLogs(1));
+</script>
+</body>
+</html>

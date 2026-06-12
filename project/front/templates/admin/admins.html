@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Administrators</p>
+        <h2>管理员管理</h2>
+    </div>
+
+    <div class="admin-form-card" style="margin-bottom:2rem">
+        <h3 style="margin-top:0;font-family:var(--font-display)">新增管理员</h3>
+        <div class="form-group">
+            <label>用户名</label>
+            <input type="text" id="username" class="form-control" maxlength="50">
+        </div>
+        <div class="form-group">
+            <label>密码</label>
+            <input type="password" id="password" class="form-control" maxlength="100">
+        </div>
+        <div class="form-group">
+            <label>邮箱</label>
+            <input type="email" id="email" class="form-control">
+        </div>
+        <div class="form-group">
+            <label>姓名</label>
+            <input type="text" id="fullName" class="form-control">
+        </div>
+        <div class="form-group">
+            <label>手机（可选）</label>
+            <input type="text" id="phone" class="form-control">
+        </div>
+        <button class="btn btn-primary" onclick="createAdmin()">创建管理员</button>
+    </div>
+
+    <div class="section-title">现有管理员</div>
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr><th>ID</th><th>用户名</th><th>姓名</th><th>邮箱</th><th>状态</th><th>创建时间</th></tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+        </table>
+    </div>
+    <div class="pagination-bar" id="pagination"></div>
+</div>
+
+<script>
+    async function loadAdmins(page) {
+        try {
+            const data = await adminGet('/api/admin/users/admins?page=' + page + '&size=10');
+            document.getElementById('adminTableBody').innerHTML = data.records.map(u => `
+                <tr>
+                    <td>${u.id}</td><td>${u.username}</td><td>${u.realName || '-'}</td>
+                    <td>${u.email}</td><td>${statusLabel(u.status)}</td>
+                    <td>${formatDate(u.createdAt)}</td>
+                </tr>`).join('') || '<tr><td colspan="6" style="text-align:center">暂无</td></tr>';
+            renderPagination('pagination', data, loadAdmins);
+        } catch (e) { alert(e.message); }
+    }
+
+    async function createAdmin() {
+        const body = {
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value,
+            email: document.getElementById('email').value.trim(),
+            fullName: document.getElementById('fullName').value.trim(),
+            phone: document.getElementById('phone').value.trim() || null
+        };
+        if (!body.username || !body.password || !body.email || !body.fullName) {
+            alert('请填写必填项'); return;
+        }
+        try {
+            await adminPost('/api/admin/users/admins', body);
+            alert('管理员创建成功');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            loadAdmins(1);
+        } catch (e) { alert(e.message); }
+    }
+
+    function formatDate(v) {
+        if (!v) return '-';
+        return String(v).replace('T', ' ').slice(0, 19);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadAdmins(1));
+</script>
+</body>
+</html>

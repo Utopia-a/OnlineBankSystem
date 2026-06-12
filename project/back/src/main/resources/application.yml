@@ -51,6 +51,7 @@ transaction:
     daily-limit: 500000.00
     single-limit: 100000.00
     min-amount: 0.01
+    otp-threshold: 5000.00
   deposit:
     max-amount: 500000.00
     min-amount: 0.01

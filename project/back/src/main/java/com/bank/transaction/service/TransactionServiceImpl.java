@@ -2,6 +2,7 @@ package com.bank.transaction.service;
 
 import com.bank.transaction.config.TransactionNoGenerator;
 import com.bank.transaction.config.TransactionProperties;
+import com.bank.admin.service.AdminRuntimeConfigService;
 import com.bank.transaction.dto.DepositRequest;
 import com.bank.transaction.dto.TransactionResponse;
 import com.bank.transaction.dto.TransferRequest;
@@ -44,6 +45,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionNoGenerator transactionNoGenerator;
     private final TransactionProperties properties;
+    private final AdminRuntimeConfigService runtimeConfig;
 
     // ─────────────────────────────────────────────────────
     //  转账
@@ -86,8 +88,15 @@ public class TransactionServiceImpl implements TransactionService {
         // 4. 限额校验
         validateTransferDailyLimit(fromId, amount);
 
+        BigDecimal feeRate = runtimeConfig.getTransferFeeRate();
+        BigDecimal fee = BigDecimal.ZERO;
+        if (feeRate.compareTo(BigDecimal.ZERO) > 0) {
+            fee = amount.multiply(feeRate).setScale(2, java.math.RoundingMode.HALF_UP);
+        }
+        BigDecimal totalDebit = amount.add(fee);
+
         // 5. 余额校验
-        if (fromAccount.getBalance().compareTo(amount) < 0) {
+        if (fromAccount.getBalance().compareTo(totalDebit) < 0) {
             throw new InsufficientBalanceException();
         }
 
@@ -95,7 +104,7 @@ public class TransactionServiceImpl implements TransactionService {
         BigDecimal fromBefore = fromAccount.getBalance();
         BigDecimal toBefore   = toAccount.getBalance();
 
-        fromAccount.setBalance(fromBefore.subtract(amount));
+        fromAccount.setBalance(fromBefore.subtract(totalDebit));
         toAccount.setBalance(toBefore.add(amount));
         accountRepository.save(fromAccount);
         accountRepository.save(toAccount);
@@ -112,7 +121,9 @@ public class TransactionServiceImpl implements TransactionService {
                 .fromBalanceAfter(fromAccount.getBalance())
                 .toBalanceBefore(toBefore)
                 .toBalanceAfter(toAccount.getBalance())
-                .remark(request.getRemark())
+                .remark(fee.compareTo(BigDecimal.ZERO) > 0
+                        ? appendFeeRemark(request.getRemark(), fee)
+                        : request.getRemark())
                 .operatorId(operatorId)
                 .operatorIp(operatorIp)
                 .build();
@@ -239,17 +250,18 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void validateAccountActive(Account account) {
         if (account.getStatus() != AccountStatus.ACTIVE) {
-            throw new AccountStatusException(account.getStatus().name());
+            throw new AccountStatusException(account.getStatus());
         }
     }
 
     private void validateTransferAmount(BigDecimal amount) {
         TransactionProperties.Transfer cfg = properties.getTransfer();
+        BigDecimal singleLimit = runtimeConfig.getMaxTransferAmount(cfg.getSingleLimit());
         if (amount.compareTo(cfg.getMinAmount()) < 0) {
             throw new TransactionLimitException("转账金额不能小于 " + cfg.getMinAmount());
         }
-        if (amount.compareTo(cfg.getSingleLimit()) > 0) {
-            throw new TransactionLimitException("单笔转账不能超过 " + cfg.getSingleLimit());
+        if (amount.compareTo(singleLimit) > 0) {
+            throw new TransactionLimitException("单笔转账不能超过 " + singleLimit);
         }
     }
 
@@ -265,11 +277,12 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void validateWithdrawAmount(BigDecimal amount) {
         TransactionProperties.Withdraw cfg = properties.getWithdraw();
+        BigDecimal singleLimit = runtimeConfig.getMaxWithdrawAmount(cfg.getSingleLimit());
         if (amount.compareTo(cfg.getMinAmount()) < 0) {
             throw new TransactionLimitException("取款金额不能小于 " + cfg.getMinAmount());
         }
-        if (amount.compareTo(cfg.getSingleLimit()) > 0) {
-            throw new TransactionLimitException("单笔取款不能超过 " + cfg.getSingleLimit());
+        if (amount.compareTo(singleLimit) > 0) {
+            throw new TransactionLimitException("单笔取款不能超过 " + singleLimit);
         }
     }
 
@@ -285,7 +298,7 @@ public class TransactionServiceImpl implements TransactionService {
         );
 
         BigDecimal newTotal = todayTotal.add(amount);
-        BigDecimal dailyLimit = properties.getTransfer().getDailyLimit();
+        BigDecimal dailyLimit = runtimeConfig.getDailyTransferLimit(properties.getTransfer().getDailyLimit());
 
         if (newTotal.compareTo(dailyLimit) > 0) {
             throw new TransactionLimitException(
@@ -313,6 +326,14 @@ public class TransactionServiceImpl implements TransactionService {
                     String.format("单日取款限额 %s，今日已取 %s，本次 %s，超出限额",
                             dailyLimit, todayTotal, amount));
         }
+    }
+
+    private String appendFeeRemark(String remark, BigDecimal fee) {
+        String feeText = "手续费:" + fee;
+        if (remark == null || remark.isBlank()) {
+            return feeText;
+        }
+        return remark + " (" + feeText + ")";
     }
 
     private TransactionResponse toResponse(Transaction txn) {

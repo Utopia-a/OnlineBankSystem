@@ -52,10 +52,12 @@ async function apiDelete(url) {
  */
 async function apiFetch(url, options = {}) {
     const token = localStorage.getItem('accessToken');
+    const suppressAuthRedirect = options.suppressAuthRedirect === true;
+    const { suppressAuthRedirect: _ignored, ...fetchOptions } = options;
 
     const headers = {
         'Content-Type': 'application/json',
-        ...(options.headers || {})
+        ...(fetchOptions.headers || {})
     };
 
     if (token) {
@@ -65,7 +67,7 @@ async function apiFetch(url, options = {}) {
     let response;
     try {
         response = await fetch(url, {
-            ...options,
+            ...fetchOptions,
             headers
         });
     } catch (networkError) {
@@ -75,7 +77,9 @@ async function apiFetch(url, options = {}) {
     // 处理 401 - 未登录或 Token 过期
     if (response.status === 401) {
         localStorage.clear();
-        window.location.href = '/login?reason=expired';
+        if (!suppressAuthRedirect) {
+            window.location.href = '/login?reason=expired';
+        }
         throw new Error('登录已过期，请重新登录');
     }
 

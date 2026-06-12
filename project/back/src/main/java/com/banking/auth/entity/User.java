@@ -103,7 +103,12 @@ public class User implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        if (lockedUntil == null) return true;
+        if (status == UserStatus.LOCKED) {
+            return false;
+        }
+        if (lockedUntil == null) {
+            return true;
+        }
         return LocalDateTime.now().isAfter(lockedUntil);
     }
 

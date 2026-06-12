@@ -92,7 +92,12 @@
                 role: data.role
             }));
 
-            window.location.href = '/dashboard';
+            const role = data.role || '';
+            if (role === 'ROLE_ADMIN') {
+                window.location.href = '/admin/dashboard';
+            } else {
+                window.location.href = '/dashboard';
+            }
         } catch (e) {
             const msg = e.message || '登录失败，请检查用户名和密码';
             showError(msg);

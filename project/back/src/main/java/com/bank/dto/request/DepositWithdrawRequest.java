@@ -26,4 +26,7 @@ public class DepositWithdrawRequest {
     @Size(max = 100, message = "备注最多100个字符")
     @Schema(description = "备注")
     private String remark;
+
+    @Schema(description = "登录密码（取款时必填）")
+    private String password;
 }

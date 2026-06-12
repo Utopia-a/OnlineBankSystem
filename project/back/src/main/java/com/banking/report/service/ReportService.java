@@ -5,6 +5,7 @@ import com.banking.report.dto.TransactionQueryRequest;
 import com.bank.account.entity.Account;
 import com.bank.account.repository.AccountRepository;
 import com.bank.transaction.entity.Transaction;
+import com.bank.transaction.enums.TransactionType;
 import com.bank.transaction.repository.TransactionRepository;
 import com.banking.report.exception.ReportException;
 import com.banking.report.repository.TransactionSpecification;
@@ -67,7 +68,7 @@ public class ReportService {
                 TransactionSpecification.buildSpec(req, accountId), pageable);
 
         List<TransactionDTO> dtos = page.getContent().stream()
-                .map(t -> enrichWithAccountNo(TransactionDTO.from(t)))
+                .map(t -> enrichWithAccountNo(TransactionDTO.fromForAccount(t, accountId)))
                 .collect(Collectors.toList());
 
         return PageResult.<TransactionDTO>builder()
@@ -95,7 +96,19 @@ public class ReportService {
         if (!authorized) {
             throw new ReportException.AccessDeniedException("无权限查看该交易记录");
         }
-        return enrichWithAccountNo(TransactionDTO.from(tx));
+        Long viewAccountId = resolveViewAccountId(tx, userId);
+        return enrichWithAccountNo(TransactionDTO.fromForAccount(tx, viewAccountId));
+    }
+
+    private Long resolveViewAccountId(Transaction tx, Long userId) {
+        if (tx.getTransactionType() == TransactionType.TRANSFER_OUT
+                && isAccountOwner(tx.getToAccountId(), userId)) {
+            return tx.getToAccountId();
+        }
+        if (isAccountOwner(tx.getFromAccountId(), userId)) {
+            return tx.getFromAccountId();
+        }
+        return tx.getToAccountId();
     }
 
     // ===== 账户收支统计 =====
@@ -165,7 +178,7 @@ public class ReportService {
 
         List<Transaction> records = fetchForExport(accountId, req);
         List<TransactionDTO> dtos = records.stream()
-                .map(t -> enrichWithAccountNo(TransactionDTO.from(t)))
+                .map(t -> enrichWithAccountNo(TransactionDTO.fromForAccount(t, accountId)))
                 .collect(Collectors.toList());
 
         String filename = buildFilename(accountId, "xlsx");
@@ -192,7 +205,7 @@ public class ReportService {
 
         List<Transaction> records = fetchForExport(accountId, req);
         List<TransactionDTO> dtos = records.stream()
-                .map(t -> enrichWithAccountNo(TransactionDTO.from(t)))
+                .map(t -> enrichWithAccountNo(TransactionDTO.fromForAccount(t, accountId)))
                 .collect(Collectors.toList());
 
         String filename = buildFilename(accountId, "pdf");
@@ -222,7 +235,7 @@ public class ReportService {
 
         List<Transaction> records = fetchForExport(accountId, req);
         List<TransactionDTO> dtos = records.stream()
-                .map(t -> enrichWithAccountNo(TransactionDTO.from(t)))
+                .map(t -> enrichWithAccountNo(TransactionDTO.fromForAccount(t, accountId)))
                 .collect(Collectors.toList());
 
         String filename = buildFilename(accountId, "csv");

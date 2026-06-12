@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Users</p>
+        <h2>用户管理</h2>
+    </div>
+
+    <div class="toolbar">
+        <input type="text" id="keyword" class="form-control" placeholder="用户名/邮箱/姓名">
+        <select id="statusFilter" class="form-control">
+            <option value="">全部状态</option>
+            <option value="ACTIVE">正常</option>
+            <option value="LOCKED">冻结</option>
+            <option value="DISABLED">禁用</option>
+            <option value="PENDING_VERIFY">待验证</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadUsers(1)">查询</button>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>ID</th><th>用户名</th><th>姓名</th><th>邮箱</th><th>手机</th>
+                <th>角色</th><th>状态</th><th>注册时间</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+        </table>
+    </div>
+    <div class="pagination-bar" id="pagination"></div>
+</div>
+
+<div class="modal-overlay" id="pwdModal">
+    <div class="modal-box">
+        <h3>设置密码</h3>
+        <input type="hidden" id="pwdUserId">
+        <div class="form-group">
+            <label>新密码（至少8位）</label>
+            <input type="password" id="newPassword" class="form-control">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-sm" onclick="closePwdModal()">取消</button>
+            <button class="btn btn-sm btn-primary-sm" onclick="submitPassword()">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPage = 1;
+
+    function statusBadge(s) {
+        const cls = s === 'ACTIVE' ? 'badge-success' : (s === 'FROZEN' || s === 'LOCKED') ? 'badge-warning' : 'badge-error';
+        return `<span class="badge ${cls}">${statusLabel(s)}</span>`;
+    }
+
+    async function loadUsers(page) {
+        currentPage = page;
+        const q = buildQuery({
+            page, size: 10,
+            keyword: document.getElementById('keyword').value.trim(),
+            status: document.getElementById('statusFilter').value,
+            role: 'ROLE_USER'
+        });
+        try {
+            const data = await adminGet('/api/admin/users?' + q);
+            const tbody = document.getElementById('userTableBody');
+            if (!data.records.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#888">暂无数据</td></tr>';
+            } else {
+                tbody.innerHTML = data.records.map(u => `
+                    <tr>
+                        <td>${u.id}</td><td>${u.username}</td><td>${u.realName || '-'}</td>
+                        <td>${u.email || '-'}</td><td>${u.phoneNumber || '-'}</td>
+                        <td>${roleLabel(u.role)}</td><td>${statusBadge(u.status)}</td>
+                        <td>${formatDate(u.createdAt)}</td>
+                        <td>
+                            <button class="btn-sm" onclick="setStatus(${u.id},'ACTIVE')">启用</button>
+                            <button class="btn-sm" onclick="setStatus(${u.id},'LOCKED')">冻结</button>
+                            <button class="btn-sm" onclick="openPwdModal(${u.id})">改密</button>
+                            <button class="btn-sm" onclick="resetPwd(${u.id})">重置</button>
+                        </td>
+                    </tr>`).join('');
+            }
+            renderPagination('pagination', data, loadUsers);
+        } catch (e) { alert(e.message); }
+    }
+
+    async function setStatus(userId, status) {
+        if (!confirm('确认修改用户状态？')) return;
+        try {
+            await adminPut('/api/admin/users/' + userId + '/status', { status });
+            loadUsers(currentPage);
+        } catch (e) { alert(e.message); }
+    }
+
+    async function resetPwd(userId) {
+        if (!confirm('将生成随机密码，确认重置？')) return;
+        try {
+            const r = await adminPost('/api/admin/users/' + userId + '/reset-password', null);
+            alert('新密码：' + r.newPassword);
+        } catch (e) { alert(e.message); }
+    }
+
+    function openPwdModal(userId) {
+        document.getElementById('pwdUserId').value = userId;
+        document.getElementById('newPassword').value = '';
+        document.getElementById('pwdModal').classList.add('show');
+    }
+    function closePwdModal() { document.getElementById('pwdModal').classList.remove('show'); }
+
+    async function submitPassword() {
+        const userId = document.getElementById('pwdUserId').value;
+        const newPassword = document.getElementById('newPassword').value;
+        if (newPassword.length < 8) { alert('密码至少8位'); return; }
+        try {
+            await adminPut('/api/admin/users/' + userId + '/password', { newPassword });
+            closePwdModal();
+            alert('密码已更新');
+        } catch (e) { alert(e.message); }
+    }
+
+    function formatDate(v) {
+        if (!v) return '-';
+        return String(v).replace('T', ' ').slice(0, 19);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadUsers(1));
+</script>
+</body>
+</html>

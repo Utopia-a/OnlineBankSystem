@@ -64,6 +64,7 @@ public class OtpRecord {
     public enum OtpType {
         EMAIL_VERIFY,       // 注册邮箱验证
         LOGIN_MFA,          // 登录二步验证
-        PASSWORD_RESET      // 密码重置
+        PASSWORD_RESET,     // 密码重置
+        TRANSFER_VERIFY     // 大额转账邮箱验证
     }
 }

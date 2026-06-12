@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="adminNav">
+    <nav class="navbar admin-navbar">
+        <div class="navbar-brand">
+            <a href="/admin/dashboard">
+                <span class="brand-mark">⚙</span>
+                <span>管理后台</span>
+            </a>
+        </div>
+        <div class="navbar-menu admin-nav-menu">
+            <a href="/admin/dashboard" class="nav-link admin-nav-link" data-path="/admin/dashboard">概览</a>
+            <a href="/admin/users" class="nav-link admin-nav-link" data-path="/admin/users">用户管理</a>
+            <a href="/admin/accounts" class="nav-link admin-nav-link" data-path="/admin/accounts">账户管理</a>
+            <a href="/admin/config" class="nav-link admin-nav-link" data-path="/admin/config">系统配置</a>
+            <a href="/admin/transactions" class="nav-link admin-nav-link" data-path="/admin/transactions">交易日志</a>
+            <a href="/admin/operation-logs" class="nav-link admin-nav-link" data-path="/admin/operation-logs">操作日志</a>
+            <a href="/admin/admins" class="nav-link admin-nav-link" data-path="/admin/admins">管理员</a>
+        </div>
+        <div class="navbar-user">
+            <span id="adminUserName" class="nav-username"></span>
+            <a href="/dashboard" class="btn btn-sm btn-outline admin-user-link">用户前台</a>
+            <button type="button" class="btn-logout" onclick="adminLogout()">退出</button>
+        </div>
+    </nav>
+    <script th:src="@{/static/js/admin-api.js}"></script>
+    <script>document.addEventListener('DOMContentLoaded', initAdminNav);</script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理概览 - 网上银行系统</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Admin Dashboard</p>
+        <h2>管理概览</h2>
+        <p class="subtitle">系统运行数据一览</p>
+    </div>
+
+    <div class="stat-grid" id="statsGrid">
+        <div class="loading-placeholder">加载中...</div>
+    </div>
+
+    <div class="section-title">今日交易分布</div>
+    <div class="chart-dashboard" id="txnChartPanel">
+        <div class="chart-card">
+            <div class="chart-card-title">交易笔数分布</div>
+            <div class="chart-card-canvas"><canvas id="txnCountChart"></canvas></div>
+            <div class="chart-legend-list" id="countLegend"></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-card-title">交易金额分布（元）</div>
+            <div class="chart-card-canvas"><canvas id="txnAmountChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-card-title">交易结果</div>
+            <div class="chart-card-canvas"><canvas id="txnResultChart"></canvas></div>
+            <div class="chart-result-summary" id="resultSummary">-</div>
+            <div class="chart-result-detail" id="resultDetail">成功率 -</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CHART_COLORS = {
+        deposit:    '#5db8a6',
+        withdrawal: '#cc785c',
+        transfer:   '#e8a55a',
+        success:    '#5db872',
+        failure:    '#c64545'
+    };
+
+    let countChart = null;
+    let amountChart = null;
+    let resultChart = null;
+
+    const chartFont = { family: 'Inter, sans-serif', size: 11 };
+    const chartColor = '#a09d96';
+    const gridColor = 'rgba(255,255,255,0.08)';
+
+    function formatAmount(v) {
+        if (v == null) return '0.00';
+        return parseFloat(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function destroyCharts() {
+        [countChart, amountChart, resultChart].forEach(c => { if (c) c.destroy(); });
+        countChart = amountChart = resultChart = null;
+    }
+
+    function renderCountLegend(labels, counts, amounts) {
+        const colors = [CHART_COLORS.deposit, CHART_COLORS.withdrawal, CHART_COLORS.transfer];
+        document.getElementById('countLegend').innerHTML = labels.map((label, i) =>
+            `<span class="chart-legend-item">
+                <span class="chart-legend-dot" style="background:${colors[i]}"></span>
+                ${label} ${counts[i]} 笔 · ¥${formatAmount(amounts[i])}
+            </span>`
+        ).join('');
+    }
+
+    function renderTxnCharts(s) {
+        destroyCharts();
+
+        const labels = ['存款', '取款', '转账'];
+        const counts = [s.depositCount, s.withdrawalCount, s.transferCount];
+        const amounts = [parseFloat(s.depositAmount || 0), parseFloat(s.withdrawalAmount || 0), parseFloat(s.transferAmount || 0)];
+        const colors = [CHART_COLORS.deposit, CHART_COLORS.withdrawal, CHART_COLORS.transfer];
+
+        renderCountLegend(labels, counts, amounts);
+
+        const totalTxn = counts.reduce((a, b) => a + b, 0);
+        const successRate = totalTxn > 0
+            ? ((s.todaySuccessCount / totalTxn) * 100).toFixed(1)
+            : '0.0';
+        document.getElementById('resultSummary').textContent =
+            `${s.todaySuccessCount} / ${s.todayFailedCount}`;
+        document.getElementById('resultDetail').textContent =
+            `成功 ${s.todaySuccessCount} 笔 · 失败 ${s.todayFailedCount} 笔 · 成功率 ${successRate}%`;
+
+        const doughnutOpts = {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#252320',
+                    titleFont: chartFont,
+                    bodyFont: chartFont,
+                    callbacks: {
+                        label(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                            return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        };
+
+        countChart = new Chart(document.getElementById('txnCountChart'), {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data: counts,
+                    backgroundColor: colors,
+                    borderColor: '#181715',
+                    borderWidth: 2,
+                    hoverOffset: 6
+                }]
+            },
+            options: doughnutOpts
+        });
+
+        amountChart = new Chart(document.getElementById('txnAmountChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: '金额（元）',
+                    data: amounts,
+                    backgroundColor: colors.map(c => c + 'cc'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    barThickness: 48
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#252320',
+                        titleFont: chartFont,
+                        bodyFont: chartFont,
+                        callbacks: {
+                            label(ctx) { return ` ¥${formatAmount(ctx.raw)}`; }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: chartColor, font: chartFont },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: chartColor,
+                            font: chartFont,
+                            callback(v) {
+                                if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                                return v;
+                            }
+                        },
+                        grid: { color: gridColor }
+                    }
+                }
+            }
+        });
+
+        const resultTotal = s.todaySuccessCount + s.todayFailedCount;
+        resultChart = new Chart(document.getElementById('txnResultChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['成功', '失败'],
+                datasets: [{
+                    data: resultTotal > 0
+                        ? [s.todaySuccessCount, s.todayFailedCount]
+                        : [1, 0],
+                    backgroundColor: resultTotal > 0
+                        ? [CHART_COLORS.success, CHART_COLORS.failure]
+                        : ['#3d3d3a', '#252320'],
+                    borderColor: '#181715',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...doughnutOpts,
+                plugins: {
+                    ...doughnutOpts.plugins,
+                    tooltip: {
+                        ...doughnutOpts.plugins.tooltip,
+                        filter(item) { return resultTotal > 0; },
+                        callbacks: {
+                            label(ctx) {
+                                const total = s.todaySuccessCount + s.todayFailedCount;
+                                const pct = total ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                                return ` ${ctx.label}: ${ctx.raw} 笔 (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadStats() {
+        try {
+            const s = await adminGet('/api/admin/transactions/dashboard');
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card"><div class="stat-label">用户总数</div><div class="stat-value">${s.totalUsers}</div></div>
+                <div class="stat-card"><div class="stat-label">活跃用户</div><div class="stat-value">${s.activeUsers}</div></div>
+                <div class="stat-card"><div class="stat-label">冻结用户</div><div class="stat-value">${s.frozenUsers}</div></div>
+                <div class="stat-card"><div class="stat-label">今日新增用户</div><div class="stat-value">${s.newUsersToday}</div></div>
+                <div class="stat-card"><div class="stat-label">今日交易笔数</div><div class="stat-value">${s.todayTransactionCount}</div></div>
+                <div class="stat-card"><div class="stat-label">今日交易金额</div><div class="stat-value">¥${formatAmount(s.todayTransactionAmount)}</div></div>
+                <div class="stat-card"><div class="stat-label">本月交易笔数</div><div class="stat-value">${s.monthTransactionCount}</div></div>
+                <div class="stat-card"><div class="stat-label">本月交易金额</div><div class="stat-value">¥${formatAmount(s.monthTransactionAmount)}</div></div>
+            `;
+            renderTxnCharts(s);
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    }
+
+    function toast(msg, type) { alert(msg); }
+    document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+<script th:src="@{/static/js/app.js}"></script>
+</body>
+</html>

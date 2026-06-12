@@ -6,6 +6,9 @@ import com.bank.account.entity.Account;
 import com.bank.account.enums.AccountStatus;
 import com.bank.account.exception.*;
 import com.bank.account.repository.AccountRepository;
+import com.bank.admin.support.AdminAuditHelper;
+import com.banking.auth.entity.User;
+import com.banking.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,6 +32,8 @@ public class AccountServiceImpl implements AccountService {
 
     private final AccountRepository accountRepository;
     private final AccountNumberGenerator accountNumberGenerator;
+    private final AdminAuditHelper adminAuditHelper;
+    private final UserRepository userRepository;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 创建账户
@@ -38,6 +43,8 @@ public class AccountServiceImpl implements AccountService {
     @Transactional
     public AccountResponse createAccount(Long userId, CreateAccountRequest request) {
         log.info("用户 {} 创建账户，类型: {}", userId, request.getAccountType());
+
+        validateUserCanOpenAccount(userId);
 
         // 生成唯一账户号
         String accountNumber = generateUniqueAccountNumber();
@@ -147,7 +154,12 @@ public class AccountServiceImpl implements AccountService {
     @Transactional
     public AccountResponse adminChangeAccountStatus(Long accountId, AccountStatusRequest request) {
         Account account = findAccountById(accountId);
-        return doChangeStatus(account, request);
+        AccountStatus oldStatus = account.getStatus();
+        AccountResponse response = doChangeStatus(account, request);
+        adminAuditHelper.log("账户管理", "变更账户状态",
+                "ACCOUNT", String.valueOf(accountId),
+                oldStatus + " -> " + request.getStatus());
+        return response;
     }
 
     private AccountResponse doChangeStatus(Account account, AccountStatusRequest request) {
@@ -287,6 +299,17 @@ public class AccountServiceImpl implements AccountService {
     private void checkOwnership(Account account, Long userId) {
         if (!account.getUserId().equals(userId)) {
             throw new AccountAccessDeniedException();
+        }
+    }
+
+    private void validateUserCanOpenAccount(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AccountStatusException("用户不存在，无法开户"));
+        if (user.getStatus() != User.UserStatus.ACTIVE) {
+            throw new AccountStatusException("当前用户状态异常，无法开户，请联系管理员");
+        }
+        if (accountRepository.countByUserIdAndStatus(userId, AccountStatus.FROZEN) > 0) {
+            throw new AccountStatusException("存在冻结账户，暂不能新开账户，请联系管理员解冻后再试");
         }
     }
 

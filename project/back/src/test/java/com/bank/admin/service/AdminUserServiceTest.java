@@ -4,6 +4,10 @@ import com.bank.admin.dto.request.UpdateUserStatusRequest;
 import com.bank.admin.dto.response.UserVO;
 import com.bank.admin.repository.AdminUserRepository;
 import com.bank.admin.service.impl.AdminUserServiceImpl;
+import com.bank.account.entity.Account;
+import com.bank.account.enums.AccountStatus;
+import com.bank.account.repository.AccountRepository;
+import com.bank.admin.support.AdminAuditHelper;
 import com.bank.transaction.exception.BusinessException;
 import com.banking.auth.entity.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +37,12 @@ class AdminUserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private AdminAuditHelper adminAuditHelper;
+
+    @Mock
+    private AccountRepository accountRepository;
 
     @InjectMocks
     private AdminUserServiceImpl adminUserService;
@@ -81,8 +92,12 @@ class AdminUserServiceTest {
     @Test
     @DisplayName("修改用户状态 - 正常用户可以锁定")
     void updateUserStatus_normalUser_canLock() {
+        Account activeAccount = Account.builder()
+                .id(10L).userId(1L).accountNumber("ACC001").status(AccountStatus.ACTIVE).build();
         when(adminUserRepository.findById(1L)).thenReturn(Optional.of(normalUser));
         when(adminUserRepository.save(any(User.class))).thenReturn(normalUser);
+        when(accountRepository.findByUserId(1L)).thenReturn(List.of(activeAccount));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateUserStatusRequest request = new UpdateUserStatusRequest();
         request.setStatus(User.UserStatus.LOCKED);
@@ -90,7 +105,9 @@ class AdminUserServiceTest {
         adminUserService.updateUserStatus(1L, request);
 
         verify(adminUserRepository).save(any(User.class));
+        verify(accountRepository).save(any(Account.class));
         assertThat(normalUser.getStatus()).isEqualTo(User.UserStatus.LOCKED);
+        assertThat(activeAccount.getStatus()).isEqualTo(AccountStatus.FROZEN);
     }
 
     @Test

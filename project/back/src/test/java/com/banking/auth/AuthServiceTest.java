@@ -164,6 +164,18 @@ class AuthServiceTest {
                 .isInstanceOf(AuthException.AccountLockedException.class);
     }
 
+    @Test
+    @DisplayName("登录 - 管理员冻结用户（无锁定截止时间）")
+    void login_adminFrozenUser_throwsException() {
+        activeUser.setStatus(User.UserStatus.LOCKED);
+        activeUser.setLockedUntil(null);
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+
+        assertThatThrownBy(() -> authService.login(validLoginRequest, null))
+                .isInstanceOf(AuthException.AccountLockedException.class)
+                .hasMessageContaining("冻结");
+    }
+
     // ===== 找回密码测试 =====
 
     @Test

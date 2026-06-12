@@ -4,6 +4,7 @@ import com.bank.admin.dto.request.SystemConfigRequest;
 import com.bank.admin.entity.SystemConfig;
 import com.bank.admin.repository.SystemConfigRepository;
 import com.bank.admin.service.SystemConfigService;
+import com.bank.admin.support.AdminAuditHelper;
 import com.bank.transaction.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import java.util.List;
 public class SystemConfigServiceImpl implements SystemConfigService {
 
     private final SystemConfigRepository systemConfigRepository;
+    private final AdminAuditHelper adminAuditHelper;
 
     @Override
     public List<SystemConfig> listAll() {
@@ -51,6 +53,8 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         config.setUpdatedBy(operatorId);
 
         SystemConfig saved = systemConfigRepository.save(config);
+        adminAuditHelper.log("系统配置", "新增配置",
+                "CONFIG", saved.getConfigKey(), saved.getConfigValue());
         log.info("管理员新增系统配置: key={}, operatorId={}", request.getConfigKey(), operatorId);
         return saved;
     }
@@ -73,6 +77,8 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         config.setUpdatedBy(operatorId);
 
         SystemConfig saved = systemConfigRepository.save(config);
+        adminAuditHelper.log("系统配置", "更新配置",
+                "CONFIG", String.valueOf(id), request.getConfigKey() + "=" + request.getConfigValue());
         log.info("管理员更新系统配置: id={}, key={}, operatorId={}", id, request.getConfigKey(), operatorId);
         return saved;
     }
@@ -84,6 +90,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             throw new BusinessException(400, "配置项不存在，ID: " + id);
         }
         systemConfigRepository.deleteById(id);
+        adminAuditHelper.log("系统配置", "删除配置", "CONFIG", String.valueOf(id), null);
         log.info("管理员删除系统配置: id={}", id);
     }
 }

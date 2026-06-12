@@ -121,8 +121,8 @@
                 <td>${formatTxnType(t.transactionType)}</td>
                 <td class="mono">${t.fromAccountNo ? maskAccountNo(t.fromAccountNo) : '-'}</td>
                 <td class="mono">${t.toAccountNo ? maskAccountNo(t.toAccountNo) : '-'}</td>
-                <td class="${t.transactionType === 'DEPOSIT' ? 'amount-in' : 'amount-out'}" style="font-weight:600">
-                    ${t.transactionType === 'DEPOSIT' ? '+' : '-'}¥${formatAmount(t.amount)}
+                <td class="${isCreditTransaction(t.transactionType) ? 'amount-in' : 'amount-out'}" style="font-weight:600">
+                    ${formatSignedAmount(t.transactionType, t.amount)}
                 </td>
                 <td>¥${formatAmount(t.balanceAfter)}</td>
                 <td>${t.remark || '-'}</td>

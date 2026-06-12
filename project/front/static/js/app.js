@@ -50,10 +50,24 @@ function formatDate(datetime) {
 function formatTxnType(type) {
     const map = {
         'TRANSFER': '转账',
-        'DEPOSIT':  '存款',
-        'WITHDRAW': '取款'
+        'TRANSFER_IN': '转入',
+        'TRANSFER_OUT': '转出',
+        'DEPOSIT': '存款',
+        'WITHDRAW': '取款',
+        'WITHDRAWAL': '取款'
     };
     return map[type] || type;
+}
+
+/** 是否为入账（显示 + 号） */
+function isCreditTransaction(type) {
+    return type === 'DEPOSIT' || type === 'TRANSFER_IN';
+}
+
+/** 格式化带符号的交易金额 */
+function formatSignedAmount(type, amount) {
+    const sign = isCreditTransaction(type) ? '+' : '-';
+    return sign + '¥' + formatAmount(amount);
 }
 
 /**
@@ -68,6 +82,16 @@ function formatStatus(status) {
         'ROLLED_BACK': '已回滚'
     };
     return map[status] || status;
+}
+
+/** 是否为正常可用账户 */
+function isActiveAccount(account) {
+    return account && account.status === 'ACTIVE';
+}
+
+/** 筛选正常状态账户 */
+function getActiveAccounts(accounts) {
+    return (accounts || []).filter(isActiveAccount);
 }
 
 /**

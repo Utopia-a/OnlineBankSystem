@@ -43,11 +43,12 @@
         </div>
 
         <div class="form-group" id="otpGroup" style="display:none">
-            <label>OTP 验证码 <span style="color:red">*</span> <span style="color:#888;font-size:12px">（大额转账需要验证）</span></label>
+            <label>邮箱验证码 <span style="color:red">*</span> <span style="color:#888;font-size:12px">（超过 ¥5000 需验证）</span></label>
             <div style="display:flex;gap:10px">
                 <input type="text" id="otpCode" class="form-control" placeholder="6位验证码" maxlength="6" style="flex:1">
-                <button class="btn btn-secondary" onclick="sendOtp()" style="white-space:nowrap">发送验证码</button>
+                <button type="button" class="btn btn-secondary" onclick="sendOtp()" style="white-space:nowrap">发送验证码</button>
             </div>
+            <div class="hint">验证码将发送至您注册时绑定的邮箱；开发环境请查看服务端控制台 <code>[OTP 模拟发送]</code></div>
         </div>
 
         <div class="transfer-summary" id="summary" style="display:none">
@@ -57,10 +58,11 @@
         </div>
 
         <div class="error-msg" id="errorMsg" style="display:none"></div>
+        <div class="success-msg" id="successMsg" style="display:none"></div>
 
         <div class="form-actions">
             <a href="/dashboard" class="btn btn-secondary">取消</a>
-            <button class="btn btn-primary" onclick="confirmTransfer()">确认转账</button>
+            <button type="button" class="btn btn-primary" onclick="confirmTransfer()">确认转账</button>
         </div>
     </div>
 </div>
@@ -74,7 +76,12 @@
         try {
             myAccounts = await apiGet('/api/accounts/my');
             const select = document.getElementById('fromAccount');
-            myAccounts.filter(a => a.status === 'ACTIVE').forEach(a => {
+            const activeAccounts = getActiveAccounts(myAccounts);
+            if (!activeAccounts.length) {
+                showError('暂无可用付款账户，冻结账户不能转账');
+                return;
+            }
+            activeAccounts.forEach(a => {
                 const opt = document.createElement('option');
                 opt.value = a.accountNo;
                 const typeLabel = a.accountType === 'SAVINGS' ? '储蓄' : (a.accountType === 'CHECKING' ? '活期' : a.accountType);
@@ -97,22 +104,47 @@
         }
     }
 
+    const LARGE_TRANSFER_THRESHOLD = 5000;
+    let otpSending = false;
+
     function checkOtpRequired() {
-        const amount = parseFloat(document.getElementById('amount').value);
-        document.getElementById('otpGroup').style.display = (amount > 5000) ? 'block' : 'none';
+        const raw = document.getElementById('amount').value;
+        const amount = parseFloat(raw);
+        const group = document.getElementById('otpGroup');
+        if (!raw || isNaN(amount)) {
+            return;
+        }
+        group.style.display = amount > LARGE_TRANSFER_THRESHOLD ? 'block' : 'none';
     }
 
     async function sendOtp() {
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const token = localStorage.getItem('accessToken');
+        if (otpSending) return;
+        const amount = parseFloat(document.getElementById('amount').value);
+        if (!amount || isNaN(amount) || amount <= LARGE_TRANSFER_THRESHOLD) {
+            showError('请先输入超过 ¥5000 的转账金额');
+            return;
+        }
+        otpSending = true;
+        const btn = document.querySelector('#otpGroup button');
+        if (btn) btn.disabled = true;
+        hideSuccess();
         try {
-            await fetch('/api/auth/otp/send?phone=' + (userInfo.phone || ''), {
+            await apiFetch('/api/transactions/transfer/send-otp', {
                 method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + token }
+                body: '{}',
+                suppressAuthRedirect: true
             });
-            alert('验证码已发送');
-        } catch(e) {
-            showError('发送失败：' + e.message);
+            showSuccess('验证码已发送至您的注册邮箱。开发环境请在后端控制台查找 [OTP 模拟发送] 日志');
+        } catch (e) {
+            if (e.message.includes('登录已过期')) {
+                showError('登录已过期，请重新登录后再试');
+                setTimeout(() => { window.location.href = '/login?reason=expired'; }, 1500);
+            } else {
+                showError('发送失败：' + e.message);
+            }
+        } finally {
+            otpSending = false;
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -136,7 +168,10 @@
         }
         if (fromAccountNo.toUpperCase() === toAccountUpper) { showError('付款账户和收款账户不能相同'); return; }
         if (!amount || amount <= 0) { showError('请输入正确的转账金额'); return; }
-        if (amount > 5000 && !otpCode) { showError('大额转账需要输入OTP验证码'); return; }
+        if (amount > LARGE_TRANSFER_THRESHOLD && !otpCode) {
+            showError('大额转账需要输入邮箱验证码，请先点击「发送验证码」');
+            return;
+        }
 
         if (!confirm(`确认转账 ¥${formatAmount(amount)} 至账户 ${toAccountNo}？`)) return;
 
@@ -152,10 +187,25 @@
     }
 
     function showError(msg) {
+        hideSuccess();
         const el = document.getElementById('errorMsg');
         el.textContent = msg;
         el.style.display = 'block';
-        setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function showSuccess(msg) {
+        hideError();
+        const el = document.getElementById('successMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideError() {
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    function hideSuccess() {
+        document.getElementById('successMsg').style.display = 'none';
     }
 
     init();

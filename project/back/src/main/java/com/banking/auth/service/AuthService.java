@@ -213,7 +213,52 @@ public class AuthService {
         return otpService.generateAndSend(target, type);
     }
 
+    // ===== 大额转账 OTP =====
+
+    @Transactional
+    public OtpResult sendTransferOtp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException.UserNotFoundException("用户不存在"));
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new AuthException.InvalidOtpException("账户未绑定邮箱，无法发送验证码");
+        }
+        if (otpService.hasValidOtp(user.getEmail(), OtpType.TRANSFER_VERIFY)) {
+            throw new AuthException.TooManyOtpRequestsException(
+                    "验证码已发送至邮箱，请查收或等待过期后重试");
+        }
+        return otpService.generateAndSend(user.getEmail(), OtpType.TRANSFER_VERIFY);
+    }
+
+    public void verifyTransferOtp(Long userId, String code) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException.UserNotFoundException("用户不存在"));
+        otpService.verify(user.getEmail(), code, OtpType.TRANSFER_VERIFY);
+    }
+
+    /**
+     * 校验当前用户的登录密码（用于取款等敏感操作）
+     */
+    public void verifyLoginPassword(Long userId, String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("请输入登录密码");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException.UserNotFoundException("用户不存在"));
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new IllegalArgumentException("登录密码不正确");
+        }
+    }
+
     // ===== 私有方法 =====
+
+    /**
+     * 校验用户处于可交易状态（供交易、开户等接口调用）
+     */
+    public void verifyUserActive(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException.UserNotFoundException("用户不存在"));
+        checkAccountStatus(user);
+    }
 
     private void checkAccountStatus(User user) {
         if (user.getStatus() == User.UserStatus.PENDING_VERIFY) {
@@ -222,9 +267,12 @@ public class AuthService {
         if (user.getStatus() == User.UserStatus.DISABLED) {
             throw new AuthException.AccountLockedException("账户已被禁用，请联系管理员");
         }
-        if (user.getStatus() == User.UserStatus.LOCKED && !user.isAccountNonLocked()) {
-            throw new AuthException.AccountLockedException(
-                    "账户已锁定至 " + user.getLockedUntil() + "，请稍后重试");
+        if (user.getStatus() == User.UserStatus.LOCKED) {
+            if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+                throw new AuthException.AccountLockedException(
+                        "账户已锁定至 " + user.getLockedUntil() + "，请稍后重试");
+            }
+            throw new AuthException.AccountLockedException("账户已被冻结，请联系管理员");
         }
     }
 

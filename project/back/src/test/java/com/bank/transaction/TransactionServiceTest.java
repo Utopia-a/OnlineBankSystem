@@ -1,5 +1,6 @@
 package com.bank.transaction;
 
+import com.bank.admin.service.AdminRuntimeConfigService;
 import com.bank.transaction.config.TransactionNoGenerator;
 import com.bank.transaction.config.TransactionProperties;
 import com.bank.transaction.dto.DepositRequest;
@@ -43,6 +44,7 @@ class TransactionServiceTest {
     @Mock private AccountRepository accountRepository;
     @Mock private TransactionRepository transactionRepository;
     @Mock private TransactionNoGenerator transactionNoGenerator;
+    @Mock private AdminRuntimeConfigService runtimeConfig;
 
     @InjectMocks
     private TransactionServiceImpl transactionService;
@@ -61,8 +63,13 @@ class TransactionServiceTest {
             throw new RuntimeException(e);
         }
 
-        when(transactionNoGenerator.generate()).thenReturn("TXN202406101234560001");
-        when(transactionRepository.save(any())).thenAnswer(inv -> {
+        lenient().when(runtimeConfig.getMaxTransferAmount(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(runtimeConfig.getDailyTransferLimit(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(runtimeConfig.getMaxWithdrawAmount(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(runtimeConfig.getTransferFeeRate()).thenReturn(BigDecimal.ZERO);
+
+        lenient().when(transactionNoGenerator.generate()).thenReturn("TXN202406101234560001");
+        lenient().when(transactionRepository.save(any())).thenAnswer(inv -> {
             Transaction t = inv.getArgument(0);
             t.setId(1L);
             t.setCreatedAt(LocalDateTime.now());
@@ -188,6 +195,59 @@ class TransactionServiceTest {
         assertThat(resp.getStatus()).isEqualTo(TransactionStatus.SUCCESS);
         assertThat(resp.getFromBalanceAfter()).isEqualByComparingTo("4000.00");
         assertThat(resp.getToBalanceAfter()).isEqualByComparingTo("2000.00");
+    }
+
+    @Test
+    @DisplayName("取款 - 账户冻结时拒绝")
+    void withdraw_frozenAccount_throws() {
+        Account account = buildAccount(1001L, new BigDecimal("5000.00"), AccountStatus.FROZEN);
+        when(accountRepository.findByIdWithLock(1001L)).thenReturn(Optional.of(account));
+
+        WithdrawRequest req = new WithdrawRequest();
+        req.setAccountId(1001L);
+        req.setAmount(new BigDecimal("100.00"));
+
+        assertThatThrownBy(() -> transactionService.withdraw(req, 1L, "127.0.0.1"))
+                .isInstanceOf(AccountStatusException.class)
+                .hasMessageContaining("冻结");
+    }
+
+    @Test
+    @DisplayName("转账 - 付款账户冻结时拒绝")
+    void transfer_frozenFromAccount_throws() {
+        Account fromAccount = buildAccount(1001L, new BigDecimal("5000.00"), AccountStatus.FROZEN);
+        Account toAccount   = buildAccount(1002L, new BigDecimal("1000.00"), AccountStatus.ACTIVE);
+
+        when(accountRepository.findByIdWithLock(1001L)).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findByIdWithLock(1002L)).thenReturn(Optional.of(toAccount));
+
+        TransferRequest req = new TransferRequest();
+        req.setFromAccountId(1001L);
+        req.setToAccountId(1002L);
+        req.setAmount(new BigDecimal("100.00"));
+
+        assertThatThrownBy(() -> transactionService.transfer(req, 1L, "127.0.0.1"))
+                .isInstanceOf(AccountStatusException.class)
+                .hasMessageContaining("冻结");
+    }
+
+    @Test
+    @DisplayName("转账 - 收款账户冻结时拒绝")
+    void transfer_frozenToAccount_throws() {
+        Account fromAccount = buildAccount(1001L, new BigDecimal("5000.00"), AccountStatus.ACTIVE);
+        Account toAccount   = buildAccount(1002L, new BigDecimal("1000.00"), AccountStatus.FROZEN);
+
+        when(accountRepository.findByIdWithLock(1001L)).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findByIdWithLock(1002L)).thenReturn(Optional.of(toAccount));
+
+        TransferRequest req = new TransferRequest();
+        req.setFromAccountId(1001L);
+        req.setToAccountId(1002L);
+        req.setAmount(new BigDecimal("100.00"));
+
+        assertThatThrownBy(() -> transactionService.transfer(req, 1L, "127.0.0.1"))
+                .isInstanceOf(AccountStatusException.class)
+                .hasMessageContaining("冻结");
     }
 
     @Test

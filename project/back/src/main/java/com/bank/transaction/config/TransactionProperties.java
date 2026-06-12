@@ -23,6 +23,8 @@ public class TransactionProperties {
         private BigDecimal dailyLimit = new BigDecimal("500000.00");
         private BigDecimal singleLimit = new BigDecimal("100000.00");
         private BigDecimal minAmount = new BigDecimal("0.01");
+        /** 超过此金额需邮箱 OTP 验证 */
+        private BigDecimal otpThreshold = new BigDecimal("5000.00");
     }
 
     @Data

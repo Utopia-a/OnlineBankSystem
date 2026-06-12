@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账户管理 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Accounts</p>
+        <h2>账户管理</h2>
+        <p class="subtitle">查看所有用户账户，变更账户状态</p>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>账户号</th><th>用户ID</th><th>类型</th><th>状态</th>
+                <th>余额</th><th>日限额</th><th>别名</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="accountTableBody"></tbody>
+        </table>
+    </div>
+    <div class="pagination-bar" id="pagination"></div>
+</div>
+
+<script>
+    let currentPage = 1;
+
+    async function loadAccounts(page) {
+        currentPage = page;
+        try {
+            const raw = await adminFetch('/api/admin/accounts?page=' + (page - 1) + '&size=10');
+            const data = normalizePageResult(raw);
+            const tbody = document.getElementById('accountTableBody');
+            if (!data.records.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">暂无账户</td></tr>';
+            } else {
+                tbody.innerHTML = data.records.map(a => `
+                    <tr>
+                        <td>${a.accountNumber}</td>
+                        <td>${a.userId}</td>
+                        <td>${a.accountType}</td>
+                        <td>${statusLabel(a.status)}</td>
+                        <td>¥${Number(a.balance).toFixed(2)}</td>
+                        <td>¥${Number(a.dailyTransferLimit || 0).toFixed(2)}</td>
+                        <td>${a.alias || '-'}</td>
+                        <td>
+                            <button class="btn-sm" onclick="changeStatus(${a.id},'ACTIVE')">启用</button>
+                            <button class="btn-sm" onclick="changeStatus(${a.id},'FROZEN')">冻结</button>
+                            <button class="btn-sm btn-danger-sm" onclick="changeStatus(${a.id},'CLOSED')">注销</button>
+                        </td>
+                    </tr>`).join('');
+            }
+            renderPagination('pagination', data, loadAccounts);
+        } catch (e) { alert(e.message); }
+    }
+
+    async function changeStatus(accountId, status) {
+        const label = statusLabel(status);
+        if (!confirm('确认将账户状态改为「' + label + '」？')) return;
+        try {
+            await adminPatch('/api/admin/accounts/' + accountId + '/status', {
+                status,
+                reason: '管理员操作'
+            });
+            alert('账户状态已更新为：' + label);
+            loadAccounts(currentPage);
+        } catch (e) { alert(e.message); }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadAccounts(1));
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ import com.bank.account.exception.AccountStatusException;
 import com.bank.account.exception.InsufficientBalanceException;
 import com.bank.transaction.exception.BusinessException;
 import com.bank.transaction.exception.TransactionLimitException;
+import com.banking.auth.exception.AuthException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -72,6 +73,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error(403, "权限不足，需要管理员权限"));
+    }
+
+    @ExceptionHandler({
+            AuthException.InvalidOtpException.class,
+            AuthException.TooManyOtpRequestsException.class,
+            AuthException.UserNotFoundException.class,
+            AuthException.AccountLockedException.class,
+            AuthException.AccountNotVerifiedException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleAuthBusiness(RuntimeException ex) {
+        log.warn("认证业务异常: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(400, ex.getMessage()));
     }
 
     @ExceptionHandler(RuntimeException.class)

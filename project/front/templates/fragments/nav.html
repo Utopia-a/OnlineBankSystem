@@ -1,56 +1,58 @@
 <!DOCTYPE html>
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <body>
-<nav th:fragment="navbar" class="navbar">
-    <div class="navbar-brand">
-        <a href="/dashboard">
-            <span class="brand-mark">✦</span>
-            <span>网上银行系统</span>
-        </a>
-    </div>
-    <div class="navbar-menu">
-        <a href="/dashboard" class="nav-link" data-path="/dashboard">首页</a>
-        <a href="/accounts" class="nav-link" data-path="/accounts">账户管理</a>
-        <a href="/transfer" class="nav-link" data-path="/transfer">转账汇款</a>
-        <a href="/transactions" class="nav-link" data-path="/transactions">交易记录</a>
-        <a href="/profile" class="nav-link" data-path="/profile">个人中心</a>
-    </div>
-    <div class="navbar-user">
-        <span id="navUserName" class="nav-username"></span>
-        <button class="btn-logout" onclick="logout()">退出登录</button>
-    </div>
-</nav>
-<script>
-    (function () {
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        if (!localStorage.getItem('accessToken')) {
-            window.location.href = '/login';
-            return;
-        }
-        const el = document.getElementById('navUserName');
-        if (el) el.textContent = userInfo.realName || userInfo.username || '';
-
-        const path = window.location.pathname;
-        document.querySelectorAll('.nav-link').forEach(link => {
-            if (link.getAttribute('data-path') === path) {
-                link.classList.add('active');
+<th:block th:fragment="navbar">
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="/dashboard">
+                <span class="brand-mark">✦</span>
+                <span>网上银行系统</span>
+            </a>
+        </div>
+        <div class="navbar-menu">
+            <a href="/dashboard" class="nav-link" data-path="/dashboard">首页</a>
+            <a href="/accounts" class="nav-link" data-path="/accounts">账户管理</a>
+            <a href="/transfer" class="nav-link" data-path="/transfer">转账汇款</a>
+            <a href="/transactions" class="nav-link" data-path="/transactions">交易记录</a>
+            <a href="/profile" class="nav-link" data-path="/profile">个人中心</a>
+        </div>
+        <div class="navbar-user">
+            <span id="navUserName" class="nav-username"></span>
+            <button type="button" class="btn-logout" onclick="logout()">退出登录</button>
+        </div>
+    </nav>
+    <script>
+        (function () {
+            if (!localStorage.getItem('accessToken')) {
+                window.location.href = '/login';
+                return;
             }
-        });
-    })();
+            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+            const el = document.getElementById('navUserName');
+            if (el) el.textContent = userInfo.realName || userInfo.username || '';
 
-    async function logout() {
-        const token = localStorage.getItem('accessToken');
-        if (token) {
-            try {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-            } catch (e) { /* ignore */ }
+            const path = window.location.pathname;
+            document.querySelectorAll('.nav-link').forEach(link => {
+                if (link.getAttribute('data-path') === path) {
+                    link.classList.add('active');
+                }
+            });
+        })();
+
+        async function logout() {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                try {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                } catch (e) { /* ignore */ }
+            }
+            localStorage.clear();
+            window.location.href = '/login';
         }
-        localStorage.clear();
-        window.location.href = '/login';
-    }
-</script>
+    </script>
+</th:block>
 </body>
 </html>

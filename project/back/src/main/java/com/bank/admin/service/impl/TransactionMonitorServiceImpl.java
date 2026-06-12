@@ -8,6 +8,7 @@ import com.bank.admin.enums.AdminTransactionType;
 import com.bank.admin.repository.AdminTransactionRepository;
 import com.bank.admin.repository.AdminUserRepository;
 import com.bank.admin.service.TransactionMonitorService;
+import com.bank.admin.support.AdminAuditHelper;
 import com.bank.transaction.entity.Transaction;
 import com.bank.transaction.enums.TransactionStatus;
 import com.bank.transaction.enums.TransactionType;
@@ -36,6 +37,7 @@ public class TransactionMonitorServiceImpl implements TransactionMonitorService 
 
     private final AdminTransactionRepository adminTransactionRepository;
     private final AdminUserRepository adminUserRepository;
+    private final AdminAuditHelper adminAuditHelper;
 
     @Override
     public PageResult<TransactionVO> listTransactions(TransactionQueryRequest request) {
@@ -121,6 +123,8 @@ public class TransactionMonitorServiceImpl implements TransactionMonitorService 
         tx.setStatus(TransactionStatus.CANCELLED);
         adminTransactionRepository.save(tx);
 
+        adminAuditHelper.log("交易监控", "撤销交易",
+                "TRANSACTION", String.valueOf(transactionId), tx.getTransactionNo());
         log.info("管理员撤销交易: transactionId={}, transactionNo={}", transactionId, tx.getTransactionNo());
     }
 

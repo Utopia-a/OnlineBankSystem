@@ -16,7 +16,7 @@
             <h2>账户管理</h2>
             <p class="subtitle">管理您名下的所有银行账户</p>
         </div>
-        <button class="btn btn-primary" onclick="showOpenAccountModal()">+ 新增开户</button>
+        <button class="btn btn-primary" id="openAccountBtn" onclick="showOpenAccountModal()">+ 新增开户</button>
     </div>
 
     <div id="accountList">
@@ -45,15 +45,32 @@
 <script th:src="@{/static/js/api.js}"></script>
 <script th:src="@{/static/js/app.js}"></script>
 <script>
+    let myAccounts = [];
+
+    function hasFrozenAccount(accounts) {
+        return (accounts || []).some(a => a.status === 'FROZEN');
+    }
+
+    function updateOpenAccountButton(accounts) {
+        const btn = document.getElementById('openAccountBtn');
+        const blocked = hasFrozenAccount(accounts);
+        if (!btn) return;
+        btn.disabled = blocked;
+        btn.title = blocked ? '存在冻结账户，暂不能新开账户' : '';
+        btn.style.opacity = blocked ? '0.45' : '1';
+        btn.style.cursor = blocked ? 'not-allowed' : 'pointer';
+    }
+
     async function loadAccounts() {
         const container = document.getElementById('accountList');
         try {
-            const accounts = await apiGet('/api/accounts/my');
-            if (!accounts.length) {
+            myAccounts = await apiGet('/api/accounts/my');
+            updateOpenAccountButton(myAccounts);
+            if (!myAccounts.length) {
                 container.innerHTML = '<div class="empty-tip">您还没有银行账户，<a href="javascript:showOpenAccountModal()">立即开户</a></div>';
                 return;
             }
-            container.innerHTML = accounts.map(a => `
+            container.innerHTML = myAccounts.map(a => `
                 <div class="card account-detail-card">
                     <div class="account-detail-header">
                         <div>
@@ -103,6 +120,10 @@
     }
 
     function showOpenAccountModal() {
+        if (hasFrozenAccount(myAccounts)) {
+            alert('存在冻结账户，暂不能新开账户，请联系管理员解冻后再试');
+            return;
+        }
         document.getElementById('openAccountModal').style.display = 'flex';
     }
     function closeModal(id) {

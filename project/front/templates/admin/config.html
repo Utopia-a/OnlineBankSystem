@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">System Config</p>
+        <h2>系统配置</h2>
+        <p class="subtitle">维护转账限额、交易费率等全局参数（修改后即时生效）</p>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr><th>配置键</th><th>当前值</th><th>说明</th><th>操作</th></tr>
+            </thead>
+            <tbody id="configTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+        <h3>编辑配置</h3>
+        <input type="hidden" id="configId">
+        <div class="form-group">
+            <label>配置键</label>
+            <input type="text" id="configKey" class="form-control" readonly>
+        </div>
+        <div class="form-group">
+            <label>配置值</label>
+            <input type="text" id="configValue" class="form-control">
+        </div>
+        <div class="form-group">
+            <label>说明</label>
+            <input type="text" id="configDesc" class="form-control">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-sm" onclick="closeEdit()">取消</button>
+            <button class="btn btn-sm btn-primary-sm" onclick="saveConfig()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let configs = [];
+
+    async function loadConfigs() {
+        try {
+            configs = await adminGet('/api/admin/configs');
+            document.getElementById('configTableBody').innerHTML = configs.map(c => `
+                <tr>
+                    <td><code>${c.configKey}</code></td>
+                    <td>${c.configValue}</td>
+                    <td>${c.description || '-'}</td>
+                    <td><button class="btn-sm" onclick="openEdit(${c.id})">编辑</button></td>
+                </tr>`).join('');
+        } catch (e) { alert(e.message); }
+    }
+
+    function openEdit(id) {
+        const c = configs.find(x => x.id === id);
+        if (!c) return;
+        document.getElementById('configId').value = c.id;
+        document.getElementById('configKey').value = c.configKey;
+        document.getElementById('configValue').value = c.configValue;
+        document.getElementById('configDesc').value = c.description || '';
+        document.getElementById('editModal').classList.add('show');
+    }
+
+    function closeEdit() { document.getElementById('editModal').classList.remove('show'); }
+
+    async function saveConfig() {
+        const id = document.getElementById('configId').value;
+        try {
+            await adminPut('/api/admin/configs/' + id, {
+                configKey: document.getElementById('configKey').value,
+                configValue: document.getElementById('configValue').value,
+                description: document.getElementById('configDesc').value
+            });
+            closeEdit();
+            loadConfigs();
+            alert('配置已保存');
+        } catch (e) { alert(e.message); }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadConfigs);
+</script>
+</body>
+</html>

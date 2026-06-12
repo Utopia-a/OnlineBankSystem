@@ -85,6 +85,8 @@ public class WebBillController {
         resp.setFromAccountNo(dto.getFromAccountNo());
         resp.setToAccountNo(dto.getToAccountNo());
         resp.setAmount(dto.getAmount());
+        resp.setBalanceBefore(dto.getBalanceBefore());
+        resp.setBalanceAfter(dto.getBalanceAfter());
         resp.setTransactionType(dto.getTransactionType());
         resp.setStatus(dto.getStatus());
         resp.setRemark(dto.getRemark());

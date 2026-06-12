@@ -137,7 +137,25 @@ INSERT IGNORE INTO system_config (config_key, config_value, description) VALUES
 ('max_withdraw_amount', '20000.00', '单笔最大取款金额（元）'),
 ('daily_transfer_limit', '200000.00', '每日转账限额（元）'),
 ('login_max_retry',      '5',         '最大登录失败次数，超出则锁定账户'),
-('account_lock_minutes', '30',        '账户锁定时长（分钟）');
+('account_lock_minutes', '30',        '账户锁定时长（分钟）'),
+('transfer_fee_rate',    '0',         '转账手续费率（小数，如 0.001 表示 0.1%）');
+
+-- 操作日志表
+CREATE TABLE IF NOT EXISTS operation_logs (
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    operator_id   BIGINT       NOT NULL,
+    operator_name VARCHAR(100) NULL,
+    module        VARCHAR(50)  NOT NULL,
+    action        VARCHAR(100) NOT NULL,
+    target_type   VARCHAR(50)  NULL,
+    target_id     VARCHAR(64)  NULL,
+    detail        TEXT         NULL,
+    ip_address    VARCHAR(45)  NULL,
+    created_at    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    KEY idx_op_log_operator (operator_id),
+    KEY idx_op_log_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员操作日志';
 
 -- 初始化管理员账号（密码：Admin@123）
 INSERT IGNORE INTO users (username, email, password, full_name, status, role, email_verified) VALUES

@@ -51,4 +51,39 @@ public class PageController {
     public String profilePage() {
         return "profile";
     }
+
+    @GetMapping("/admin/dashboard")
+    public String adminDashboardPage() {
+        return "admin/dashboard";
+    }
+
+    @GetMapping("/admin/users")
+    public String adminUsersPage() {
+        return "admin/users";
+    }
+
+    @GetMapping("/admin/accounts")
+    public String adminAccountsPage() {
+        return "admin/accounts";
+    }
+
+    @GetMapping("/admin/config")
+    public String adminConfigPage() {
+        return "admin/config";
+    }
+
+    @GetMapping("/admin/transactions")
+    public String adminTransactionsPage() {
+        return "admin/transactions";
+    }
+
+    @GetMapping("/admin/operation-logs")
+    public String adminOperationLogsPage() {
+        return "admin/operation-logs";
+    }
+
+    @GetMapping("/admin/admins")
+    public String adminAdminsPage() {
+        return "admin/admins";
+    }
 }

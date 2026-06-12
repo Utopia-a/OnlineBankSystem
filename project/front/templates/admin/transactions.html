@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交易日志 - 管理后台</title>
+    <link rel="stylesheet" th:href="@{/static/css/common.css}">
+</head>
+<body>
+<div th:replace="~{fragments/admin-nav :: adminNav}"></div>
+
+<div class="page-container">
+    <div class="page-header">
+        <p class="caption-upper">Transactions</p>
+        <h2>交易日志</h2>
+    </div>
+
+    <div class="toolbar">
+        <input type="text" id="keyword" class="form-control" placeholder="交易号">
+        <select id="typeFilter" class="form-control">
+            <option value="">全部类型</option>
+            <option value="DEPOSIT">存款</option>
+            <option value="WITHDRAW">取款</option>
+            <option value="TRANSFER">转账</option>
+        </select>
+        <select id="statusFilter" class="form-control">
+            <option value="">全部状态</option>
+            <option value="SUCCESS">成功</option>
+            <option value="FAILED">失败</option>
+            <option value="PENDING">处理中</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadTxns(1)">查询</button>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>流水号</th><th>类型</th><th>状态</th><th>金额</th>
+                <th>转出账户</th><th>转入账户</th><th>备注</th><th>时间</th>
+            </tr>
+            </thead>
+            <tbody id="txnTableBody"></tbody>
+        </table>
+    </div>
+    <div class="pagination-bar" id="pagination"></div>
+</div>
+
+<script>
+    let currentPage = 1;
+
+    async function loadTxns(page) {
+        currentPage = page;
+        const q = buildQuery({
+            page, size: 15,
+            keyword: document.getElementById('keyword').value.trim(),
+            type: document.getElementById('typeFilter').value,
+            status: document.getElementById('statusFilter').value
+        });
+        try {
+            const data = await adminGet('/api/admin/transactions?' + q);
+            const tbody = document.getElementById('txnTableBody');
+            if (!data.records.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">暂无记录</td></tr>';
+            } else {
+                tbody.innerHTML = data.records.map(t => `
+                    <tr>
+                        <td>${t.transactionNo}</td>
+                        <td>${t.type}</td>
+                        <td>${statusLabel(t.status)}</td>
+                        <td>¥${Number(t.amount).toFixed(2)}</td>
+                        <td>${t.fromAccountId || '-'}</td>
+                        <td>${t.toAccountId || '-'}</td>
+                        <td>${t.remark || '-'}</td>
+                        <td>${formatDate(t.createdAt)}</td>
+                    </tr>`).join('');
+            }
+            renderPagination('pagination', data, loadTxns);
+        } catch (e) { alert(e.message); }
+    }
+
+    function formatDate(v) {
+        if (!v) return '-';
+        return String(v).replace('T', ' ').slice(0, 19);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadTxns(1));
+</script>
+</body>
+</html>

@@ -36,11 +36,11 @@
             <span class="icon">🏦</span>
             <span>账户管理</span>
         </a>
-        <button class="quick-btn" onclick="showDepositModal()">
+        <button class="quick-btn" id="depositBtn" onclick="showDepositModal()">
             <span class="icon">💰</span>
             <span>存款</span>
         </button>
-        <button class="quick-btn" onclick="showWithdrawModal()">
+        <button class="quick-btn" id="withdrawBtn" onclick="showWithdrawModal()">
             <span class="icon">💳</span>
             <span>取款</span>
         </button>
@@ -97,9 +97,13 @@
             <label>取款金额（元）</label>
             <input type="number" id="withdrawAmount" class="form-control" placeholder="请输入金额" min="0.01" step="0.01">
         </div>
+        <div class="form-group">
+            <label>登录密码</label>
+            <input type="password" id="withdrawPassword" class="form-control" placeholder="请输入登录密码验证身份" maxlength="32" autocomplete="current-password">
+        </div>
         <div class="modal-actions">
-            <button class="btn btn-secondary" onclick="closeModal('withdrawModal')">取消</button>
-            <button class="btn btn-primary" onclick="doWithdraw()">确认取款</button>
+            <button type="button" class="btn btn-secondary" onclick="closeModal('withdrawModal')">取消</button>
+            <button type="button" class="btn btn-primary" onclick="doWithdraw()">确认取款</button>
         </div>
     </div>
 </div>
@@ -118,6 +122,7 @@
             myAccounts = await apiGet('/api/accounts/my');
             renderAccountCards(myAccounts);
             fillAccountSelects(myAccounts);
+            updateQuickActions(myAccounts);
         } catch(e) {
             document.getElementById('accountCards').innerHTML = '<p style="color:#e53935">账户加载失败：' + e.message + '</p>';
         }
@@ -163,8 +168,8 @@
             <tr>
                 <td><span class="mono">${t.transactionId}</span></td>
                 <td>${formatTxnType(t.transactionType)}</td>
-                <td class="${t.transactionType === 'DEPOSIT' ? 'amount-in' : 'amount-out'}">
-                    ${t.transactionType === 'DEPOSIT' ? '+' : '-'} ¥${formatAmount(t.amount)}
+                <td class="${isCreditTransaction(t.transactionType) ? 'amount-in' : 'amount-out'}">
+                    ${formatSignedAmount(t.transactionType, t.amount)}
                 </td>
                 <td>${formatDate(t.transactionTime)}</td>
                 <td><span class="badge badge-${t.status.toLowerCase()}">${formatStatus(t.status)}</span></td>
@@ -173,15 +178,48 @@
     }
 
     function fillAccountSelects(accounts) {
-        const opts = accounts.map(a => `<option value="${a.accountNo}">${maskAccountNo(a.accountNo)} (¥${formatAmount(a.balance)})</option>`).join('');
-        document.getElementById('depositAccount').innerHTML = opts;
-        document.getElementById('withdrawAccount').innerHTML = opts;
+        const activeAccounts = getActiveAccounts(accounts);
+        const emptyOpt = '<option value="">-- 暂无可用账户 --</option>';
+        const depositOpts = activeAccounts.length
+            ? activeAccounts.map(a =>
+                `<option value="${a.accountNo}">${maskAccountNo(a.accountNo)} (¥${formatAmount(a.balance)})</option>`
+            ).join('')
+            : emptyOpt;
+        const withdrawOpts = activeAccounts.length
+            ? activeAccounts.map(a =>
+                `<option value="${a.accountNo}">${a.accountNo} (¥${formatAmount(a.balance)})</option>`
+            ).join('')
+            : emptyOpt;
+        document.getElementById('depositAccount').innerHTML = depositOpts;
+        document.getElementById('withdrawAccount').innerHTML = withdrawOpts;
+    }
+
+    function updateQuickActions(accounts) {
+        const hasActive = getActiveAccounts(accounts).length > 0;
+        ['depositBtn', 'withdrawBtn'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.disabled = !hasActive;
+                btn.style.opacity = hasActive ? '1' : '0.45';
+                btn.style.cursor = hasActive ? 'pointer' : 'not-allowed';
+            }
+        });
     }
 
     function showDepositModal() {
+        if (!getActiveAccounts(myAccounts).length) {
+            alert('暂无可用账户，冻结账户不能存款');
+            return;
+        }
         document.getElementById('depositModal').style.display = 'flex';
     }
     function showWithdrawModal() {
+        if (!getActiveAccounts(myAccounts).length) {
+            alert('暂无可用账户，冻结账户不能取款');
+            return;
+        }
+        document.getElementById('withdrawAmount').value = '';
+        document.getElementById('withdrawPassword').value = '';
         document.getElementById('withdrawModal').style.display = 'flex';
     }
     function closeModal(id) {
@@ -203,9 +241,11 @@
     async function doWithdraw() {
         const accountNo = document.getElementById('withdrawAccount').value;
         const amount = parseFloat(document.getElementById('withdrawAmount').value);
+        const password = document.getElementById('withdrawPassword').value;
         if (!amount || amount <= 0) { alert('请输入正确金额'); return; }
+        if (!password) { alert('请输入登录密码'); return; }
         try {
-            await apiPost('/api/transactions/withdraw', { accountNo, amount });
+            await apiPost('/api/transactions/withdraw', { accountNo, amount, password });
             alert('取款成功！');
             closeModal('withdrawModal');
             loadDashboard();

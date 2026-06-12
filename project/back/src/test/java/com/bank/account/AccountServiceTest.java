@@ -8,6 +8,9 @@ import com.bank.account.enums.AccountType;
 import com.bank.account.exception.*;
 import com.bank.account.repository.AccountRepository;
 import com.bank.account.service.AccountServiceImpl;
+import com.bank.admin.support.AdminAuditHelper;
+import com.banking.auth.entity.User;
+import com.banking.auth.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,12 +37,26 @@ class AccountServiceTest {
     @Mock
     private AccountNumberGenerator accountNumberGenerator;
 
+    @Mock
+    private AdminAuditHelper adminAuditHelper;
+
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private AccountServiceImpl accountService;
 
     private Account activeAccount;
     private static final Long USER_ID = 1L;
     private static final String ACCOUNT_NUMBER = "ACC202401010000001";
+
+    private User activeUser() {
+        return User.builder()
+                .id(USER_ID)
+                .username("zhangsan")
+                .status(User.UserStatus.ACTIVE)
+                .build();
+    }
 
     @BeforeEach
     void setUp() {
@@ -65,6 +82,8 @@ class AccountServiceTest {
         request.setAccountType(AccountType.SAVINGS);
         request.setInitialDeposit(new BigDecimal("1000.00"));
 
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(activeUser()));
+        when(accountRepository.countByUserIdAndStatus(USER_ID, AccountStatus.FROZEN)).thenReturn(0L);
         when(accountNumberGenerator.generate()).thenReturn(ACCOUNT_NUMBER);
         when(accountRepository.existsByAccountNumber(ACCOUNT_NUMBER)).thenReturn(false);
         when(accountRepository.save(any(Account.class))).thenReturn(activeAccount);
@@ -74,6 +93,35 @@ class AccountServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getAccountNumber()).isEqualTo(ACCOUNT_NUMBER);
         verify(accountRepository, times(1)).save(any(Account.class));
+    }
+
+    @Test
+    @DisplayName("创建账户 - 存在冻结账户时拒绝")
+    void createAccount_rejectedWhenUserHasFrozenAccount() {
+        CreateAccountRequest request = new CreateAccountRequest();
+        request.setAccountType(AccountType.SAVINGS);
+
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(activeUser()));
+        when(accountRepository.countByUserIdAndStatus(USER_ID, AccountStatus.FROZEN)).thenReturn(1L);
+
+        assertThatThrownBy(() -> accountService.createAccount(USER_ID, request))
+                .isInstanceOf(AccountStatusException.class)
+                .hasMessageContaining("冻结账户");
+    }
+
+    @Test
+    @DisplayName("创建账户 - 用户锁定时拒绝")
+    void createAccount_rejectedWhenUserLocked() {
+        CreateAccountRequest request = new CreateAccountRequest();
+        request.setAccountType(AccountType.SAVINGS);
+
+        User lockedUser = activeUser();
+        lockedUser.setStatus(User.UserStatus.LOCKED);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(lockedUser));
+
+        assertThatThrownBy(() -> accountService.createAccount(USER_ID, request))
+                .isInstanceOf(AccountStatusException.class)
+                .hasMessageContaining("无法开户");
     }
 
     // ─── 查询账户 ───────────────────────────────────────────────────────────
