@@ -1,14 +1,22 @@
 package com.banking.report.util;
 
 import com.banking.report.dto.ReportResponse.TransactionDTO;
+import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
+import com.lowagie.text.Element;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import com.opencsv.CSVWriterBuilder;
 import com.opencsv.ICSVWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
-import org.apache.poi.xssf.usermodel.XSSFCellStyle;
-import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
@@ -207,5 +215,79 @@ public class ExportUtil {
             csvWriter.flush();
         }
         log.debug("CSV 导出完成，共 {} 行", records.size());
+    }
+
+    // ===== PDF 导出 =====
+
+    private static final String[] PDF_HEADERS = {
+            "流水号", "交易类型", "付款账户", "收款账户",
+            "交易金额", "交易状态", "备注", "交易时间"
+    };
+
+    /**
+     * 将交易列表写入 PDF 并输出到 OutputStream
+     */
+    public void writePdf(List<TransactionDTO> records, OutputStream out, String title) throws IOException {
+        BaseFont baseFont;
+        try {
+            baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
+        } catch (DocumentException e) {
+            throw new IOException("PDF 字体加载失败", e);
+        }
+        com.lowagie.text.Font titleFont = new com.lowagie.text.Font(baseFont, 16, com.lowagie.text.Font.BOLD);
+        com.lowagie.text.Font headerFont = new com.lowagie.text.Font(baseFont, 10, com.lowagie.text.Font.BOLD);
+        com.lowagie.text.Font dataFont = new com.lowagie.text.Font(baseFont, 9, com.lowagie.text.Font.NORMAL);
+
+        Document document = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
+        try {
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Paragraph titlePara = new Paragraph(title, titleFont);
+            titlePara.setAlignment(Element.ALIGN_CENTER);
+            titlePara.setSpacingAfter(16f);
+            document.add(titlePara);
+
+            PdfPTable table = new PdfPTable(PDF_HEADERS.length);
+            table.setWidthPercentage(100);
+            table.setWidths(new float[]{2.2f, 1.2f, 1.6f, 1.6f, 1.2f, 1f, 1.6f, 1.8f});
+
+            for (String header : PDF_HEADERS) {
+                PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
+                cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                cell.setBackgroundColor(new java.awt.Color(239, 233, 222));
+                cell.setPadding(6f);
+                table.addCell(cell);
+            }
+
+            for (TransactionDTO tx : records) {
+                addPdfCell(table, tx.getTransactionNo(), dataFont);
+                addPdfCell(table, tx.getTransactionTypeLabel(), dataFont);
+                addPdfCell(table, tx.getFromAccountNo() != null ? tx.getFromAccountNo() : "-", dataFont);
+                addPdfCell(table, tx.getToAccountNo() != null ? tx.getToAccountNo() : "-", dataFont);
+                addPdfCell(table, tx.getAmount() != null ? tx.getAmount().toPlainString() : "0", dataFont);
+                addPdfCell(table, tx.getStatusLabel(), dataFont);
+                addPdfCell(table, tx.getRemark() != null ? tx.getRemark() : "", dataFont);
+                addPdfCell(table, tx.getCreatedAt() != null ? tx.getCreatedAt().format(DT_FMT) : "", dataFont);
+            }
+
+            document.add(table);
+
+            Paragraph summary = new Paragraph("共 " + records.size() + " 笔记录", dataFont);
+            summary.setSpacingBefore(12f);
+            document.add(summary);
+        } catch (DocumentException e) {
+            throw new IOException("PDF 生成失败", e);
+        } finally {
+            document.close();
+        }
+        log.debug("PDF 导出完成，共 {} 行", records.size());
+    }
+
+    private void addPdfCell(PdfPTable table, String text, com.lowagie.text.Font font) {
+        PdfPCell cell = new PdfPCell(new Phrase(text != null ? text : "", font));
+        cell.setPadding(5f);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(cell);
     }
 }

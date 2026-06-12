@@ -1,7 +1,12 @@
 package com.banking.config;
 
 import com.bank.account.dto.ApiResponse;
+import com.bank.account.exception.AccountAccessDeniedException;
+import com.bank.account.exception.AccountNotFoundException;
+import com.bank.account.exception.AccountStatusException;
+import com.bank.account.exception.InsufficientBalanceException;
 import com.bank.transaction.exception.BusinessException;
+import com.bank.transaction.exception.TransactionLimitException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +28,25 @@ public class GlobalExceptionHandler {
         log.warn("业务异常: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountNotFound(AccountNotFoundException ex) {
+        log.warn("账户不存在: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(4001, ex.getMessage()));
+    }
+
+    @ExceptionHandler({
+            InsufficientBalanceException.class,
+            AccountStatusException.class,
+            AccountAccessDeniedException.class,
+            TransactionLimitException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleAccountBusiness(RuntimeException ex) {
+        log.warn("账户/交易业务异常: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(400, ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

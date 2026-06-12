@@ -27,7 +27,8 @@
 
         <div class="form-group">
             <label>收款账户号</label>
-            <input type="text" id="toAccount" class="form-control" placeholder="请输入对方账户号" maxlength="20">
+            <input type="text" id="toAccount" class="form-control" placeholder="请输入对方账户号（以 ACC 开头）" maxlength="20">
+            <div class="hint">请填写收款方的银行账户号（如 ACC202406110000002），不要填写交易流水号（TXN 开头）</div>
         </div>
 
         <div class="form-group">
@@ -76,7 +77,8 @@
             myAccounts.filter(a => a.status === 'ACTIVE').forEach(a => {
                 const opt = document.createElement('option');
                 opt.value = a.accountNo;
-                opt.textContent = maskAccountNo(a.accountNo) + ' (' + a.accountType + ')';
+                const typeLabel = a.accountType === 'SAVINGS' ? '储蓄' : (a.accountType === 'CHECKING' ? '活期' : a.accountType);
+                opt.textContent = a.accountNo + '（' + typeLabel + ' · ¥' + formatAmount(a.balance) + '）';
                 opt.dataset.balance = a.balance;
                 select.appendChild(opt);
             });
@@ -123,7 +125,16 @@
 
         if (!fromAccountNo) { showError('请选择付款账户'); return; }
         if (!toAccountNo) { showError('请输入收款账户号'); return; }
-        if (fromAccountNo === toAccountNo) { showError('付款账户和收款账户不能相同'); return; }
+        const toAccountUpper = toAccountNo.toUpperCase();
+        if (toAccountUpper.startsWith('TXN')) {
+            showError('您输入的是交易流水号，请填写以 ACC 开头的收款账户号');
+            return;
+        }
+        if (!toAccountUpper.startsWith('ACC')) {
+            showError('收款账户号格式错误，应以 ACC 开头');
+            return;
+        }
+        if (fromAccountNo.toUpperCase() === toAccountUpper) { showError('付款账户和收款账户不能相同'); return; }
         if (!amount || amount <= 0) { showError('请输入正确的转账金额'); return; }
         if (amount > 5000 && !otpCode) { showError('大额转账需要输入OTP验证码'); return; }
 
@@ -131,7 +142,7 @@
 
         try {
             const result = await apiPost('/api/transactions/transfer', {
-                fromAccountNo, toAccountNo, amount, remark: remark || undefined, otpCode: otpCode || undefined
+                fromAccountNo, toAccountNo: toAccountUpper, amount, remark: remark || undefined, otpCode: otpCode || undefined
             });
             alert('转账成功！交易ID：' + result.transactionId);
             window.location.href = '/dashboard';

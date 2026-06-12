@@ -182,6 +182,33 @@ public class ReportService {
                 .build();
     }
 
+    // ===== 导出 PDF =====
+
+    @Transactional(readOnly = true)
+    public ExportInfo exportPdf(Long accountId, TransactionQueryRequest req,
+                                 Long userId, HttpServletResponse response) throws IOException {
+        validateAccountOwnership(accountId, userId);
+        validateDateRange(req.getStartTime(), req.getEndTime());
+
+        List<Transaction> records = fetchForExport(accountId, req);
+        List<TransactionDTO> dtos = records.stream()
+                .map(t -> enrichWithAccountNo(TransactionDTO.from(t)))
+                .collect(Collectors.toList());
+
+        String filename = buildFilename(accountId, "pdf");
+        setPdfResponseHeaders(response, filename);
+        exportUtil.writePdf(dtos, response.getOutputStream(), buildSheetTitle(req));
+        response.getOutputStream().flush();
+
+        log.info("PDF 导出 accountId={} rows={}", accountId, dtos.size());
+        return ExportInfo.builder()
+                .filename(filename)
+                .format("pdf")
+                .rowCount(dtos.size())
+                .message("导出成功")
+                .build();
+    }
+
     // ===== 导出 CSV =====
 
     /**
@@ -286,6 +313,13 @@ public class ReportService {
     private void setCsvResponseHeaders(HttpServletResponse response, String filename) {
         response.setContentType("text/csv; charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
+        response.setHeader("Content-Disposition",
+                "attachment; filename*=UTF-8''" + URLEncoder.encode(filename, StandardCharsets.UTF_8));
+        response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+    }
+
+    private void setPdfResponseHeaders(HttpServletResponse response, String filename) {
+        response.setContentType("application/pdf");
         response.setHeader("Content-Disposition",
                 "attachment; filename*=UTF-8''" + URLEncoder.encode(filename, StandardCharsets.UTF_8));
         response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");

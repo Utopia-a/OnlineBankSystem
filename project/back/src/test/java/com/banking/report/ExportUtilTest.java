@@ -76,6 +76,17 @@ class ExportUtilTest {
     }
 
     @Test
+    @DisplayName("PDF 导出 - 输出有效 PDF 文件")
+    void writePdf_producesValidPdf() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        exportUtil.writePdf(buildTestData(), out, "测试账单 2024-01");
+
+        byte[] bytes = out.toByteArray();
+        assertThat(bytes).isNotEmpty();
+        assertThat(new String(bytes, 0, Math.min(5, bytes.length))).startsWith("%PDF-");
+    }
+
+    @Test
     @DisplayName("空数据集不报错")
     void exportEmptyList_noException() {
         assertThatCode(() -> {
@@ -86,6 +97,11 @@ class ExportUtilTest {
         assertThatCode(() -> {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             exportUtil.writeCsv(List.of(), out);
+        }).doesNotThrowAnyException();
+
+        assertThatCode(() -> {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            exportUtil.writePdf(List.of(), out, "空账单");
         }).doesNotThrowAnyException();
     }
 }

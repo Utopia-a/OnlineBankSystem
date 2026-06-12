@@ -12,7 +12,6 @@ import com.banking.report.service.ReportService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -72,13 +71,12 @@ public class WebBillController {
         if (startDate != null) req.setStartTime(LocalDate.parse(startDate).atStartOfDay());
         if (endDate != null) req.setEndTime(LocalDate.parse(endDate).atTime(LocalTime.MAX));
 
-        if ("CSV".equalsIgnoreCase(format)) {
-            reportService.exportCsv(accountId, req, user.getUserId(), response);
-        } else {
-            reportService.exportExcel(accountId, req, user.getUserId(), response);
+        switch (format.toUpperCase()) {
+            case "CSV" -> reportService.exportCsv(accountId, req, user.getUserId(), response);
+            case "PDF" -> reportService.exportPdf(accountId, req, user.getUserId(), response);
+            case "EXCEL", "XLSX" -> reportService.exportExcel(accountId, req, user.getUserId(), response);
+            default -> throw new IllegalArgumentException("不支持的导出格式: " + format + "，请使用 CSV、PDF 或 EXCEL");
         }
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"transactions_" + accountNo + "." + format.toLowerCase() + "\"");
     }
 
     private TransactionResponse toWeb(TransactionDTO dto) {
